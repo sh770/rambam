@@ -143,8 +143,12 @@ function clearAllData() {
 
   localStorage.removeItem("participants");
   document.getElementById("summary").innerHTML = "";
+  document.getElementById("textInput").innerHTML = null;
   document.getElementById("details").innerHTML = "";
   document.getElementById("error").innerText = "הנתונים נמחקו.";
+
+  // רענון הדף כדי להציג נתונים מעודכנים
+  location.reload();
 }
 
 
