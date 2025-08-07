@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>גלגל הגרלות</title>
+    <link rel="icon" href="favicon.ico" type="image/x-icon" />
+    <link rel="stylesheet" href="wheel.css" />
+    <script src="wheel.js" defer></script>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js" defer></script> -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js" defer></script>
+
+
+  </head>
+  <body>
+    <h1>🎯 גלגל ההגרלות 🎉</h1>
+
+    <div id="container">
+      
+      <!-- <canvas id="wheel" width="300" height="300"></canvas> -->
+      <canvas id="wheel"></canvas>
+
+      <div id="arrow"></div>
+    </div>
+
+    <!-- מקום כפתור סובב -->
+    <div id="controls" >
+      <button onclick="spinWheel()">סובב 🎯</button>
+    </div>
+
+    <div class="form">
+      <input type="text" id="name" placeholder="שם משתתף" />
+      <input type="number" id="tickets" placeholder="מספר כרטיסים" min="0" />
+      <button onclick="addParticipant()">➕ הוסף</button>
+    </div>
+
+    <table id="participantsTable">
+      <thead>
+        <tr>
+          <th>👤 שם</th>
+          <th>🎟️ כרטיסים</th>
+          <th>🗑️ מחק</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <audio id="winSound" src="crowd_cheer.ogg"></audio>
+  </body>
+</html>
