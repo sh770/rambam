@@ -52,14 +52,18 @@ th {
 }
 
 .button-container {
-  display: flex; /* סידור אופקי של הכפתורים */
-  justify-content: center; /* ממרכז את כל הקבוצה */
-  gap: 10px; /* רווח בין הכפתורים */
-  flex-wrap: wrap; /* במידה ואין מקום במסך קטן, יורדים שורה */
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .button-container button {
-  flex: 1; /* כל כפתור יתפוס גודל שווה */
-  min-width: 150px; /* גודל מינימלי לכל כפתור */
-  max-width: 200px; /* גודל מקסימלי – ניתן להתאים */
+  flex: 1;
+  min-width: 150px;
+  max-width: 200px;
+  height: 60px; /* גובה אחיד */
+  display: flex; /* מאפשר מרכוז תוכן */
+  align-items: center; /* מרכוז אנכי */
+  justify-content: center; /* מרכוז אופקי */
 }
