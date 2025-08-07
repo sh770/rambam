@@ -15,16 +15,7 @@ textarea {
   font-size: 16px;
 }
 
-/* סגנון בסיסי לכל כפתור – ללא גודל */
-button {
-  padding: 12px 24px;
-  font-size: 18px;
-  border-radius: 10px;
-  border: none;
-  background-color: #4CAF50;
-  color: white;
-  cursor: pointer;
-}
+
 
 /* אפקט ריחוף */
 button:hover {
@@ -61,21 +52,24 @@ th {
 }
 
 /* עיצוב קבוצה של כפתורים */
-.button-container {
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 20px;
-}
-
-/* כפתורים זהים בגודלם */
 .button-container button {
-  flex: 1; /* כל כפתור יתפוס את אותו רוחב */
-  min-width: 150px;
-  max-width: 200px;
-  height: 60px; /* גובה אחיד */
-  display: flex; /* מאפשר מרכוז תוכן */
+  width: 200px;       /* קובע רוחב אחיד */
+  height: 60px;       /* קובע גובה אחיד */
+  display: flex;
   align-items: center;
   justify-content: center;
+  white-space: nowrap; /* מונע ירידת שורה בטקסט */
+  overflow: hidden;    /* מונע גלילה פנימית */
+  text-overflow: ellipsis; /* שלוש נקודות אם צריך */
+}
+
+button {
+  /* בלי width או max-width כאן */
+  padding: 12px 24px;
+  font-size: 18px;
+  border-radius: 10px;
+  border: none;
+  background-color: #4CAF50;
+  color: white;
+  cursor: pointer;
 }
