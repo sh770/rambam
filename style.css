@@ -15,8 +15,6 @@ textarea {
   font-size: 16px;
 }
 
-
-
 /* אפקט ריחוף */
 button:hover {
   background-color: #45a049;
@@ -51,20 +49,29 @@ th {
   background-color: #ffe0b2;
 }
 
-/* עיצוב קבוצה של כפתורים */
+/* ✅ עיצוב מיכל הכפתורים */
+.button-container {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+
+/* ✅ כפתורים אחידים */
 .button-container button {
-  width: 200px;       /* קובע רוחב אחיד */
-  height: 60px;       /* קובע גובה אחיד */
+  width: 200px;
+  height: 60px;
   display: flex;
   align-items: center;
   justify-content: center;
-  white-space: nowrap; /* מונע ירידת שורה בטקסט */
-  overflow: hidden;    /* מונע גלילה פנימית */
-  text-overflow: ellipsis; /* שלוש נקודות אם צריך */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+/* ✅ עיצוב כללי לכפתור */
 button {
-  /* בלי width או max-width כאן */
   padding: 12px 24px;
   font-size: 18px;
   border-radius: 10px;
