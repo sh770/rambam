@@ -5,6 +5,7 @@ body {
   text-align: center;
   padding: 20px;
 }
+
 textarea {
   width: 90%;
   max-width: 950px;
@@ -13,6 +14,8 @@ textarea {
   padding: 10px;
   font-size: 16px;
 }
+
+/* סגנון בסיסי לכל כפתור – ללא גודל */
 button {
   padding: 12px 24px;
   font-size: 18px;
@@ -21,49 +24,58 @@ button {
   background-color: #4CAF50;
   color: white;
   cursor: pointer;
-  width: 25%;
-  max-width: 300px;
-  margin: 10px auto;
 }
+
+/* אפקט ריחוף */
 button:hover {
   background-color: #45a049;
 }
 
+/* כפתור מושבת */
 button:disabled {
   background-color: #ccc;
   cursor: not-allowed;
 }
+
+/* הודעות שגיאה */
 .error {
   color: red;
   margin-bottom: 10px;
 }
+
+/* טבלה */
 table {
   margin: 20px auto;
   border-collapse: collapse;
   width: 90%;
   max-width: 600px;
 }
+
 th, td {
   border: 1px solid #aaa;
   padding: 8px;
 }
+
 th {
   background-color: #ffe0b2;
 }
 
+/* עיצוב קבוצה של כפתורים */
 .button-container {
   display: flex;
   justify-content: center;
   gap: 10px;
   flex-wrap: wrap;
+  margin-top: 20px;
 }
 
+/* כפתורים זהים בגודלם */
 .button-container button {
-  flex: 1;
+  flex: 1; /* כל כפתור יתפוס את אותו רוחב */
   min-width: 150px;
   max-width: 200px;
   height: 60px; /* גובה אחיד */
   display: flex; /* מאפשר מרכוז תוכן */
-  align-items: center; /* מרכוז אנכי */
-  justify-content: center; /* מרכוז אופקי */
+  align-items: center;
+  justify-content: center;
 }
