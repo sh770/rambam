@@ -25,7 +25,7 @@ function analyzeText() {
   errorEl.innerText = "";
 
   // 🔄 ניקוי הטקסט מקידודים לא נחוצים
-  cleanText = cleanText.replace(/\[\s*(?:\d{1,2}\.\d{1,2}\s*,\s*\d{1,2}:\d{2}|\d{1,2}:\d{2}\s*,\s*\d{1,2}\.\d{1,2}(?:\.\d{4})?)\s*\]/g, '\n');
+  cleanText = cleanText.replace(/\[(?:\d{1,2}\.\d{1,2}, \d{1,2}:\d{2}|\d{1,2}:\d{2}, \d{1,2}\.\d{1,2}(?:\.\d{4})?)\]/g, '\n');
 
   const lines = cleanText.split('\n');
   const users = {};
