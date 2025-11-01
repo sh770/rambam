@@ -22,11 +22,15 @@
 
 <h1>ניתוח ניקוד לפי הודעות וואטסאפ</h1>
 
-<label for="startDate">בחר תאריך התחלה לניתוח:</label>
-<input type="date" id="startDate" />
+<label for="startOption">סנן הודעות מאז:</label>
+<select id="startOption">
+  <option value="">-- אין סינון --</option>
+  <option value="date">תאריך</option>
+  <option value="keyword">הודעה התחלתית</option>
+</select>
 
-<label for="startKeyword">או הזן ביטוי/הודעה שממנה להתחיל (לא חובה):</label>
-<input type="text" id="startKeyword" placeholder="לדוגמה: ההגרלה הבאה תהיה בסוף ספר" value="ההגרלה הבאה תהיה בסוף ספר" style="width:100%; padding:5px;" />
+<input type="date" id="startDate" style="display:none;" />
+<input type="text" id="startKeyword" placeholder="לדוגמה: ההגרלה הבאה תהיה בסוף ספר" style="display:none; width:100%; padding:5px;" />
 
 <label for="chatFile">או העלה קובץ טקסט של הצ׳אט (.txt):</label>
 <input type="file" id="chatFile" accept=".txt" />
@@ -53,19 +57,33 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
 <script>
-// 🔹 Parse WhatsApp date (supports short [28.10, 17:15] and long 28.10.2025, 17:15 -)
+// 🔹 Enhanced parse WhatsApp date
 function parseWhatsAppDate(line) {
-  let dateMatch = line.match(/\[(\d{1,2})\.(\d{1,2}),\s*(\d{1,2}):(\d{2})\]/);
-  if (dateMatch) {
-    const [ , day, month, hour, minute ] = dateMatch;
+  line = line.replace(/[\u200E\u200F\u202A-\u202E]/g, '').trim();
+
+  // פורמט קצר [d.m, hh:mm]
+  let shortMatch = line.match(/\[(\d{1,2})\.(\d{1,2}),\s*(\d{1,2}):(\d{2})\]/);
+  if (shortMatch) {
+    const [ , day, month, hour, minute ] = shortMatch;
     const year = new Date().getFullYear();
-    return new Date(`${year}-${month}-${day}T${hour.padStart(2,'0')}:${minute}:00`);
+    return new Date(`${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')}T${hour.padStart(2,'0')}:${minute}:00`);
   }
-  dateMatch = line.match(/(\d{1,2})\.(\d{1,2})\.(\d{4}),\s*(\d{1,2}):(\d{2})/);
-  if (dateMatch) {
-    const [ , day, month, year, hour, minute ] = dateMatch;
-    return new Date(`${year}-${month}-${day}T${hour.padStart(2,'0')}:${minute}:00`);
+
+  // פורמט ארוך d.m.yyyy, hh:mm -
+  let longMatch = line.match(/(\d{1,2})\.(\d{1,2})\.(\d{4}),\s*(\d{1,2}):(\d{2})/);
+  if (longMatch) {
+    const [ , day, month, year, hour, minute ] = longMatch;
+    return new Date(`${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')}T${hour.padStart(2,'0')}:${minute}:00`);
   }
+
+  // פורמט חלופי d.m, hh:mm -
+  let altMatch = line.match(/(\d{1,2})\.(\d{1,2}),\s*(\d{1,2}):(\d{2})\s*-/);
+  if (altMatch) {
+    const [ , day, month, hour, minute ] = altMatch;
+    const year = new Date().getFullYear();
+    return new Date(`${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')}T${hour.padStart(2,'0')}:${minute}:00`);
+  }
+
   return null;
 }
 
@@ -132,6 +150,13 @@ document.getElementById("zipFile").addEventListener("change", function(event) {
   reader.readAsArrayBuffer(file);
 });
 
+// 🔹 Show/hide input fields based on option
+document.getElementById("startOption").addEventListener("change", function() {
+  const option = this.value;
+  document.getElementById("startDate").style.display = option === "date" ? "block" : "none";
+  document.getElementById("startKeyword").style.display = option === "keyword" ? "block" : "none";
+});
+
 // 🔹 Toggle analyze button
 function toggleAnalyzeButton() {
   const btn = document.getElementById("analyzeBtn");
@@ -143,8 +168,9 @@ function toggleAnalyzeButton() {
 function analyzeText() {
   const analyzeBtn = document.getElementById("analyzeBtn");
   const textInput = document.getElementById("textInput").value.trim();
+  const startOption = document.getElementById("startOption").value;
   const startDateInput = document.getElementById("startDate").value;
-  const startKeyword = document.getElementById("startKeyword").value.trim();
+  const startKeywordInput = document.getElementById("startKeyword").value.trim();
   const currentOnly = document.getElementById("currentOnly").checked;
 
   const errorEl = document.getElementById("error");
@@ -169,18 +195,18 @@ function analyzeText() {
   const users = {};
   let pendingUser = null;
   let pendingContent = "";
-  let keywordFound = startKeyword === "";
-  const startDate = startDateInput ? new Date(startDateInput) : null;
+  let totalMessages = 0, skippedMessages = 0, includedMessages = 0;
+  let keywordReached = startOption === "keyword" ? false : true;
+  let startDate = null;
 
-  let totalMessages = 0, skippedMessages = 0, includedMessages = 0, filteredByDate = 0, filteredByKeyword = 0;
+  if (startOption === "date" && startDateInput) startDate = new Date(startDateInput);
 
-  lines.forEach((line) => {
+  for (const line of lines) {
     const match = line.match(/^(?:\[\d{1,2}\.\d{1,2},\s*\d{1,2}:\d{2}\]|\d{1,2}\.\d{1,2}\.\d{4},\s*\d{1,2}:\d{2}\s*-\s*)([^:]+):\s*(.*)$/);
-
     if (match) {
-      if (pendingUser) {
-        const processed = processMessage(users, pendingUser, pendingContent);
-        if (processed) includedMessages++; else skippedMessages++;
+      if (pendingUser && pendingContent) {
+        const includeMessage = processMessage(users, pendingUser, pendingContent);
+        if (includeMessage) includedMessages++; else skippedMessages++;
       }
       pendingUser = match[1].trim();
       pendingContent = match[2].trim();
@@ -188,25 +214,26 @@ function analyzeText() {
     } else if (pendingUser) {
       pendingContent += "\n" + line.trim();
     }
-  });
-
-  if (pendingUser) {
-    const processed = processMessage(users, pendingUser, pendingContent);
-    if (processed) includedMessages++; else skippedMessages++;
   }
 
+  if (pendingUser && pendingContent) {
+    const includeMessage = processMessage(users, pendingUser, pendingContent);
+    if (includeMessage) includedMessages++; else skippedMessages++;
+  }
+
+  // סינון לפי תאריך או הודעה התחלתית
   for (const name in users) {
-    if (startDate) {
-      const firstLine = textInput.split('\n').find(l => l.includes(name));
-      const msgDate = parseWhatsAppDate(firstLine || "");
-      if (msgDate && msgDate < startDate) {
-        delete users[name];
-        filteredByDate++;
+    const userLines = lines.filter(l => l.includes(name));
+    if (startOption === "date" && startDate) {
+      const firstLine = userLines[0] || "";
+      const msgDate = parseWhatsAppDate(firstLine);
+      if (msgDate && msgDate < startDate) delete users[name];
+    } else if (startOption === "keyword" && startKeywordInput) {
+      let found = false;
+      for (const l of userLines) {
+        if (l.includes(startKeywordInput)) { found = true; break; }
       }
-    }
-    if (startKeyword && !keywordFound) {
-      delete users[name];
-      filteredByKeyword++;
+      if (!found) delete users[name];
     }
   }
 
@@ -240,8 +267,6 @@ function analyzeText() {
     <p>סה״כ הודעות: <b>${totalMessages}</b></p>
     <p>נכללו בניתוח: <b>${includedMessages}</b></p>
     <p>דלגו (מערכת/מדיה): <b>${skippedMessages}</b></p>
-    <p>נפסלו לפי תאריך: <b>${filteredByDate}</b></p>
-    <p>נפסלו עד הודעת מפתח: <b>${filteredByKeyword}</b></p>
   `;
 
   analyzeBtn.disabled = false;
@@ -255,6 +280,10 @@ function resetScores() {
   document.getElementById("summaryBox").innerHTML = "";
   alert("הניקוד המצטבר אופס בהצלחה!");
 }
+
+// 🔹 Toggle analyze button on text change
+document.getElementById("textInput").addEventListener("input", toggleAnalyzeButton);
+window.addEventListener("DOMContentLoaded", toggleAnalyzeButton);
 </script>
 
 </body>
