@@ -76,14 +76,6 @@ function parseWhatsAppDate(line) {
     return new Date(`${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')}T${hour.padStart(2,'0')}:${minute}:00`);
   }
 
-  // פורמט חלופי d.m, hh:mm -
-  let altMatch = line.match(/(\d{1,2})\.(\d{1,2}),\s*(\d{1,2}):(\d{2})\s*-/);
-  if (altMatch) {
-    const [ , day, month, hour, minute ] = altMatch;
-    const year = new Date().getFullYear();
-    return new Date(`${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')}T${hour.padStart(2,'0')}:${minute}:00`);
-  }
-
   return null;
 }
 
@@ -202,6 +194,14 @@ function analyzeText() {
   if (startOption === "date" && startDateInput) startDate = new Date(startDateInput);
 
   for (const line of lines) {
+    // 🔹 סינון לפי תאריך או הודעה התחלתית בתחילת הלולאה
+    const msgDate = parseWhatsAppDate(line);
+    if (startOption === "date" && startDate && msgDate && msgDate < startDate) continue;
+    if (startOption === "keyword" && startKeywordInput && !keywordReached) {
+      if (line.includes(startKeywordInput)) keywordReached = true;
+      else continue;
+    }
+
     const match = line.match(/^(?:\[\d{1,2}\.\d{1,2},\s*\d{1,2}:\d{2}\]|\d{1,2}\.\d{1,2}\.\d{4},\s*\d{1,2}:\d{2}\s*-\s*)([^:]+):\s*(.*)$/);
     if (match) {
       if (pendingUser && pendingContent) {
@@ -221,22 +221,7 @@ function analyzeText() {
     if (includeMessage) includedMessages++; else skippedMessages++;
   }
 
-  // סינון לפי תאריך או הודעה התחלתית
-  for (const name in users) {
-    const userLines = lines.filter(l => l.includes(name));
-    if (startOption === "date" && startDate) {
-      const firstLine = userLines[0] || "";
-      const msgDate = parseWhatsAppDate(firstLine);
-      if (msgDate && msgDate < startDate) delete users[name];
-    } else if (startOption === "keyword" && startKeywordInput) {
-      let found = false;
-      for (const l of userLines) {
-        if (l.includes(startKeywordInput)) { found = true; break; }
-      }
-      if (!found) delete users[name];
-    }
-  }
-
+  // 🔹 Update local storage for cumulative or current-only
   let storedData = JSON.parse(localStorage.getItem("userScores") || "{}");
   let resultData = {};
 
