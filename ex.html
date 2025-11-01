@@ -28,6 +28,9 @@
 <label for="startKeyword">או הזן ביטוי/הודעה שממנה להתחיל (לא חובה):</label>
 <input type="text" id="startKeyword" placeholder="לדוגמה: ההגרלה הבאה תהיה בסוף ספר" value="ההגרלה הבאה תהיה בסוף ספר" style="width:100%; padding:5px;" />
 
+<label for="chatFile">או העלה קובץ טקסט של הצ׳אט:</label>
+<input type="file" id="chatFile" accept=".txt" />
+
 <textarea id="textInput" placeholder="הדבק כאן את תוכן הצ׳אט מוואטסאפ..."></textarea>
 <br>
 
@@ -87,6 +90,25 @@ function processMessage(users, name, content) {
   return true;
 }
 
+// 🔹 File upload handling
+document.getElementById("chatFile").addEventListener("change", function(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    document.getElementById("textInput").value = e.target.result;
+    toggleAnalyzeButton();
+  };
+  reader.readAsText(file, "UTF-8");
+});
+
+function toggleAnalyzeButton() {
+  const btn = document.getElementById("analyzeBtn");
+  const text = document.getElementById("textInput").value.trim();
+  btn.disabled = text.length === 0;
+}
+
 function analyzeText() {
   const analyzeBtn = document.getElementById("analyzeBtn");
   const textInput = document.getElementById("textInput").value.trim();
@@ -102,7 +124,7 @@ function analyzeText() {
   analyzeBtn.disabled = true;
 
   if (!textInput) {
-    errorEl.innerText = "אנא הדבק טקסט לניתוח";
+    errorEl.innerText = "אנא הדבק או העלה קובץ טקסט לניתוח";
     summaryEl.innerHTML = "";
     detailsEl.innerHTML = "";
     summaryBox.innerHTML = "";
