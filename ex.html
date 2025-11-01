@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>ניתוח צ׳אט וואטסאפ</title>
+<style>
+  body { font-family: Arial, sans-serif; background:#f5f5f5; padding:20px; }
+  textarea { width:100%; height:200px; margin-bottom:10px; }
+  button { padding:10px 20px; border:none; background:#0078d7; color:white; border-radius:8px; cursor:pointer; margin-top:5px; }
+  button:disabled { background:gray; }
+  table { border-collapse: collapse; width:100%; margin-top:15px; background:white; }
+  th, td { border:1px solid #ccc; padding:8px; text-align:center; }
+  th { background:#e9e9e9; }
+  h2 { margin-top:25px; }
+  #error { color:red; font-weight:bold; }
+  #summaryBox { background:white; padding:10px; border-radius:8px; margin-top:15px; }
+  label { font-weight:bold; margin-top:10px; display:block; }
+  .toggle-box { background:white; padding:10px; border-radius:8px; margin-top:15px; }
+</style>
+</head>
+<body>
+
+<h1>ניתוח ניקוד לפי הודעות וואטסאפ</h1>
+
+<label for="startDate">בחר תאריך התחלה לניתוח:</label>
+<input type="date" id="startDate" />
+
+<label for="startKeyword">או הזן ביטוי/הודעה שממנה להתחיל (לא חובה):</label>
+<input type="text" id="startKeyword" placeholder="לדוגמה: ההגרלה הבאה תהיה בסוף ספר" value="ההגרלה הבאה תהיה בסוף ספר" style="width:100%; padding:5px;" />
+
+<textarea id="textInput" placeholder="הדבק כאן את תוכן הצ׳אט מוואטסאפ..."></textarea>
+<br>
+
+<button id="analyzeBtn" onclick="analyzeText()">נתח</button>
+<button onclick="resetScores()">אפס ניקוד מצטבר</button>
+
+<div class="toggle-box">
+  <label><input type="checkbox" id="currentOnly" /> הצג רק משתמשים מהניתוח הנוכחי</label>
+</div>
+
+<p id="error"></p>
+<div id="summary"></div>
+<div id="details"></div>
+<div id="summaryBox"></div>
+
+<script>
+// 🔹 Parse WhatsApp date (supports short [28.10, 17:15] and long 28.10.2025, 17:15 -)
+function parseWhatsAppDate(line) {
+  let dateMatch = line.match(/\[(\d{1,2})\.(\d{1,2}),\s*(\d{1,2}):(\d{2})\]/);
+  if (dateMatch) {
+    const [ , day, month, hour, minute ] = dateMatch;
+    const year = new Date().getFullYear();
+    return new Date(`${year}-${month}-${day}T${hour.padStart(2,'0')}:${minute}:00`);
+  }
+  dateMatch = line.match(/(\d{1,2})\.(\d{1,2})\.(\d{4}),\s*(\d{1,2}):(\d{2})/);
+  if (dateMatch) {
+    const [ , day, month, year, hour, minute ] = dateMatch;
+    return new Date(`${year}-${month}-${day}T${hour.padStart(2,'0')}:${minute}:00`);
+  }
+  return null;
+}
+
+function processMessage(users, name, content) {
+  if (
+    content.startsWith("<המדיה לא נכללה>") ||
+    content.includes("הצטרף") ||
+    content.includes("עזב") ||
+    content.includes("הוסר") ||
+    content.includes("שינה את שם הקבוצה") ||
+    content.includes("@⁨+972") ||
+    content.includes("הודעה זו נמחקה")
+  ) return false;
+
+  if (!users[name]) users[name] = { score:0, messages:0, checkCount:0, vCount:0 };
+
+  const hasCheck = content.includes("✔️");
+  const hasV = content.includes("✅");
+  let score = 1;
+  if (hasV) score = 3;
+  else if (hasCheck) score = 2;
+
+  users[name].score += score;
+  users[name].messages += 1;
+  if (hasCheck) users[name].checkCount++;
+  if (hasV) users[name].vCount++;
+
+  return true;
+}
+
+function analyzeText() {
+  const analyzeBtn = document.getElementById("analyzeBtn");
+  const textInput = document.getElementById("textInput").value.trim();
+  const startDateInput = document.getElementById("startDate").value;
+  const startKeyword = document.getElementById("startKeyword").value.trim();
+  const currentOnly = document.getElementById("currentOnly").checked;
+
+  const errorEl = document.getElementById("error");
+  const summaryEl = document.getElementById("summary");
+  const detailsEl = document.getElementById("details");
+  const summaryBox = document.getElementById("summaryBox");
+
+  analyzeBtn.disabled = true;
+
+  if (!textInput) {
+    errorEl.innerText = "אנא הדבק טקסט לניתוח";
+    summaryEl.innerHTML = "";
+    detailsEl.innerHTML = "";
+    summaryBox.innerHTML = "";
+    analyzeBtn.disabled = false;
+    return;
+  }
+
+  errorEl.innerText = "";
+
+  const lines = textInput.split('\n');
+  const users = {};
+  let pendingUser = null;
+  let pendingContent = "";
+  let keywordFound = startKeyword === "";
+  const startDate = startDateInput ? new Date(startDateInput) : null;
+
+  let totalMessages = 0, skippedMessages = 0, includedMessages = 0, filteredByDate = 0, filteredByKeyword = 0;
+
+  lines.forEach((line) => {
+    const match = line.match(/^(?:\[\d{1,2}\.\d{1,2},\s*\d{1,2}:\d{2}\]|\d{1,2}\.\d{1,2}\.\d{4},\s*\d{1,2}:\d{2}\s*-\s*)([^:]+):\s*(.*)$/);
+
+    if (match) {
+      if (pendingUser) {
+        const processed = processMessage(users, pendingUser, pendingContent);
+        if (processed) includedMessages++; else skippedMessages++;
+      }
+      pendingUser = match[1].trim();
+      pendingContent = match[2].trim();
+      totalMessages++;
+    } else if (pendingUser) {
+      pendingContent += "\n" + line.trim();
+    }
+  });
+
+  if (pendingUser) {
+    const processed = processMessage(users, pendingUser, pendingContent);
+    if (processed) includedMessages++; else skippedMessages++;
+  }
+
+  for (const name in users) {
+    if (startDate) {
+      const firstLine = textInput.split('\n').find(l => l.includes(name));
+      const msgDate = parseWhatsAppDate(firstLine || "");
+      if (msgDate && msgDate < startDate) {
+        delete users[name];
+        filteredByDate++;
+      }
+    }
+    if (startKeyword && !keywordFound) {
+      delete users[name];
+      filteredByKeyword++;
+    }
+  }
+
+  let storedData = JSON.parse(localStorage.getItem("userScores") || "{}");
+  let resultData = {};
+
+  if (currentOnly) resultData = users;
+  else {
+    for (const [name, data] of Object.entries(users)) {
+      if (!storedData[name]) storedData[name] = { score:0, messages:0, checkCount:0, vCount:0 };
+      storedData[name].score += data.score;
+      storedData[name].messages += data.messages;
+      storedData[name].checkCount += data.checkCount;
+      storedData[name].vCount += data.vCount;
+    }
+    localStorage.setItem("userScores", JSON.stringify(storedData));
+    resultData = storedData;
+  }
+
+  const summaryRows = Object.entries(resultData)
+    .map(([name, data]) => `<tr><td>${name}</td><td>${data.score}</td><td>${data.messages}</td></tr>`).join("");
+  summaryEl.innerHTML = `<h2>טבלת ניקוד ${currentOnly ? "מהניתוח הנוכחי בלבד" : "מצטברת"}</h2>
+    <table><thead><tr><th>שם</th><th>ניקוד</th><th>מס׳ הודעות</th></tr></thead><tbody>${summaryRows}</tbody></table>`;
+
+  const detailsRows = Object.entries(resultData)
+    .map(([name, data]) => `<tr><td>${name}</td><td>${data.checkCount}</td><td>${data.vCount}</td></tr>`).join("");
+  detailsEl.innerHTML = `<h2>פירוט סימנים</h2>
+    <table><thead><tr><th>שם</th><th>✔️</th><th>✅</th></tr></thead><tbody>${detailsRows}</tbody></table>`;
+
+  summaryBox.innerHTML = `<h2>סיכום ניתוח</h2>
+    <p>סה״כ הודעות: <b>${totalMessages}</b></p>
+    <p>נכללו בניתוח: <b>${includedMessages}</b></p>
+    <p>דלגו (מערכת/מדיה): <b>${skippedMessages}</b></p>
+    <p>נפסלו לפי תאריך: <b>${filteredByDate}</b></p>
+    <p>נפסלו עד הודעת מפתח: <b>${filteredByKeyword}</b></p>
+  `;
+
+  analyzeBtn.disabled = false;
+}
+
+function resetScores() {
+  localStorage.removeItem("userScores");
+  document.getElementById("summary").innerHTML = "";
+  document.getElementById("details").innerHTML = "";
+  document.getElementById("summaryBox").innerHTML = "";
+  alert("הניקוד המצטבר אופס בהצלחה!");
+}
+</script>
+
+</body>
+</html>
