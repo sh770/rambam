@@ -28,8 +28,11 @@
 <label for="startKeyword">או הזן ביטוי/הודעה שממנה להתחיל (לא חובה):</label>
 <input type="text" id="startKeyword" placeholder="לדוגמה: ההגרלה הבאה תהיה בסוף ספר" value="ההגרלה הבאה תהיה בסוף ספר" style="width:100%; padding:5px;" />
 
-<label for="chatFile">או העלה קובץ טקסט של הצ׳אט:</label>
+<label for="chatFile">או העלה קובץ טקסט של הצ׳אט (.txt):</label>
 <input type="file" id="chatFile" accept=".txt" />
+
+<label for="zipFile">או העלה קובץ ZIP עם TXT:</label>
+<input type="file" id="zipFile" accept=".zip" />
 
 <textarea id="textInput" placeholder="הדבק כאן את תוכן הצ׳אט מוואטסאפ..."></textarea>
 <br>
@@ -45,6 +48,9 @@
 <div id="summary"></div>
 <div id="details"></div>
 <div id="summaryBox"></div>
+
+<!-- JSZip library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
 <script>
 // 🔹 Parse WhatsApp date (supports short [28.10, 17:15] and long 28.10.2025, 17:15 -)
@@ -63,6 +69,7 @@ function parseWhatsAppDate(line) {
   return null;
 }
 
+// 🔹 Process each message
 function processMessage(users, name, content) {
   if (
     content.startsWith("<המדיה לא נכללה>") ||
@@ -90,7 +97,7 @@ function processMessage(users, name, content) {
   return true;
 }
 
-// 🔹 File upload handling
+// 🔹 File upload handling for TXT
 document.getElementById("chatFile").addEventListener("change", function(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -103,12 +110,36 @@ document.getElementById("chatFile").addEventListener("change", function(event) {
   reader.readAsText(file, "UTF-8");
 });
 
+// 🔹 File upload handling for ZIP
+document.getElementById("zipFile").addEventListener("change", function(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    JSZip.loadAsync(e.target.result).then(function(zip) {
+      const txtFile = Object.keys(zip.files).find(f => f.endsWith('.txt'));
+      if (!txtFile) {
+        alert("לא נמצא קובץ TXT בתוך ה-ZIP");
+        return;
+      }
+      zip.file(txtFile).async("string").then(function(content) {
+        document.getElementById("textInput").value = content;
+        toggleAnalyzeButton();
+      });
+    });
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+// 🔹 Toggle analyze button
 function toggleAnalyzeButton() {
   const btn = document.getElementById("analyzeBtn");
   const text = document.getElementById("textInput").value.trim();
   btn.disabled = text.length === 0;
 }
 
+// 🔹 Main analyze function
 function analyzeText() {
   const analyzeBtn = document.getElementById("analyzeBtn");
   const textInput = document.getElementById("textInput").value.trim();
@@ -124,7 +155,7 @@ function analyzeText() {
   analyzeBtn.disabled = true;
 
   if (!textInput) {
-    errorEl.innerText = "אנא הדבק או העלה קובץ טקסט לניתוח";
+    errorEl.innerText = "אנא הדבק או העלה קובץ לניתוח";
     summaryEl.innerHTML = "";
     detailsEl.innerHTML = "";
     summaryBox.innerHTML = "";
@@ -216,6 +247,7 @@ function analyzeText() {
   analyzeBtn.disabled = false;
 }
 
+// 🔹 Reset scores
 function resetScores() {
   localStorage.removeItem("userScores");
   document.getElementById("summary").innerHTML = "";
