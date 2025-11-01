@@ -43,6 +43,7 @@
 
 <button id="analyzeBtn" onclick="analyzeText()">נתח</button>
 <button onclick="resetScores()">אפס ניקוד מצטבר</button>
+<button onclick="clearText()">נקה טקסט</button>
 
 <div class="toggle-box">
   <label><input type="checkbox" id="currentOnly" /> הצג רק משתמשים מהניתוח הנוכחי</label>
@@ -53,29 +54,29 @@
 <div id="details"></div>
 <div id="summaryBox"></div>
 
-<!-- JSZip library -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
 <script>
-// 🔹 Enhanced parse WhatsApp date
+// 🔹 Parse WhatsApp date (short, long, alt)
 function parseWhatsAppDate(line) {
   line = line.replace(/[\u200E\u200F\u202A-\u202E]/g, '').trim();
-
-  // פורמט קצר [d.m, hh:mm]
   let shortMatch = line.match(/\[(\d{1,2})\.(\d{1,2}),\s*(\d{1,2}):(\d{2})\]/);
   if (shortMatch) {
     const [ , day, month, hour, minute ] = shortMatch;
     const year = new Date().getFullYear();
     return new Date(`${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')}T${hour.padStart(2,'0')}:${minute}:00`);
   }
-
-  // פורמט ארוך d.m.yyyy, hh:mm -
   let longMatch = line.match(/(\d{1,2})\.(\d{1,2})\.(\d{4}),\s*(\d{1,2}):(\d{2})/);
   if (longMatch) {
     const [ , day, month, year, hour, minute ] = longMatch;
     return new Date(`${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')}T${hour.padStart(2,'0')}:${minute}:00`);
   }
-
+  let altMatch = line.match(/(\d{1,2})\.(\d{1,2})\.(\d{2}),\s*(\d{1,2}):(\d{2})/);
+  if (altMatch) {
+    const [ , day, month, year, hour, minute ] = altMatch;
+    const fullYear = '20' + year;
+    return new Date(`${fullYear}-${month.padStart(2,'0')}-${day.padStart(2,'0')}T${hour.padStart(2,'0')}:${minute}:00`);
+  }
   return null;
 }
 
@@ -92,7 +93,6 @@ function processMessage(users, name, content) {
   ) return false;
 
   if (!users[name]) users[name] = { score:0, messages:0, checkCount:0, vCount:0 };
-
   const hasCheck = content.includes("✔️");
   const hasV = content.includes("✅");
   let score = 1;
@@ -103,7 +103,6 @@ function processMessage(users, name, content) {
   users[name].messages += 1;
   if (hasCheck) users[name].checkCount++;
   if (hasV) users[name].vCount++;
-
   return true;
 }
 
@@ -111,7 +110,6 @@ function processMessage(users, name, content) {
 document.getElementById("chatFile").addEventListener("change", function(event) {
   const file = event.target.files[0];
   if (!file) return;
-
   const reader = new FileReader();
   reader.onload = function(e) {
     document.getElementById("textInput").value = e.target.result;
@@ -124,15 +122,11 @@ document.getElementById("chatFile").addEventListener("change", function(event) {
 document.getElementById("zipFile").addEventListener("change", function(event) {
   const file = event.target.files[0];
   if (!file) return;
-
   const reader = new FileReader();
   reader.onload = function(e) {
     JSZip.loadAsync(e.target.result).then(function(zip) {
       const txtFile = Object.keys(zip.files).find(f => f.endsWith('.txt'));
-      if (!txtFile) {
-        alert("לא נמצא קובץ TXT בתוך ה-ZIP");
-        return;
-      }
+      if (!txtFile) { alert("לא נמצא קובץ TXT בתוך ה-ZIP"); return; }
       zip.file(txtFile).async("string").then(function(content) {
         document.getElementById("textInput").value = content;
         toggleAnalyzeButton();
@@ -156,6 +150,12 @@ function toggleAnalyzeButton() {
   btn.disabled = text.length === 0;
 }
 
+// 🔹 Clear text box
+function clearText() {
+  document.getElementById("textInput").value = "";
+  toggleAnalyzeButton();
+}
+
 // 🔹 Main analyze function
 function analyzeText() {
   const analyzeBtn = document.getElementById("analyzeBtn");
@@ -171,7 +171,6 @@ function analyzeText() {
   const summaryBox = document.getElementById("summaryBox");
 
   analyzeBtn.disabled = true;
-
   if (!textInput) {
     errorEl.innerText = "אנא הדבק או העלה קובץ לניתוח";
     summaryEl.innerHTML = "";
@@ -180,51 +179,44 @@ function analyzeText() {
     analyzeBtn.disabled = false;
     return;
   }
-
   errorEl.innerText = "";
 
   const lines = textInput.split('\n');
   const users = {};
-  let pendingUser = null;
-  let pendingContent = "";
+  let pendingUser = null, pendingContent = "", includePending = false;
   let totalMessages = 0, skippedMessages = 0, includedMessages = 0;
   let keywordReached = startOption === "keyword" ? false : true;
-  let startDate = null;
-
-  if (startOption === "date" && startDateInput) startDate = new Date(startDateInput);
+  let startDate = startOption === "date" && startDateInput ? new Date(startDateInput) : null;
 
   for (const line of lines) {
-    // 🔹 סינון לפי תאריך או הודעה התחלתית בתחילת הלולאה
-    const msgDate = parseWhatsAppDate(line);
-    if (startOption === "date" && startDate && msgDate && msgDate < startDate) continue;
-    if (startOption === "keyword" && startKeywordInput && !keywordReached) {
-      if (line.includes(startKeywordInput)) keywordReached = true;
-      else continue;
-    }
-
-    const match = line.match(/^(?:\[\d{1,2}\.\d{1,2},\s*\d{1,2}:\d{2}\]|\d{1,2}\.\d{1,2}\.\d{4},\s*\d{1,2}:\d{2}\s*-\s*)([^:]+):\s*(.*)$/);
+    const match = line.match(/^(?:\[\d{1,2}\.\d{1,2},\s*\d{1,2}:\d{2}\]|\d{1,2}\.\d{1,2}\.\d{2,4},\s*\d{1,2}:\d{2}\s*-\s*)([^:]+):\s*(.*)$/);
     if (match) {
-      if (pendingUser && pendingContent) {
-        const includeMessage = processMessage(users, pendingUser, pendingContent);
-        if (includeMessage) includedMessages++; else skippedMessages++;
+      if (pendingUser && pendingContent && includePending) {
+        const included = processMessage(users, pendingUser, pendingContent);
+        if (included) includedMessages++; else skippedMessages++;
       }
       pendingUser = match[1].trim();
       pendingContent = match[2].trim();
       totalMessages++;
+
+      const msgDate = parseWhatsAppDate(line);
+      includePending = true;
+      if (startOption === "date" && startDate && msgDate && msgDate < startDate) includePending = false;
+      if (startOption === "keyword" && startKeywordInput && !keywordReached) {
+        if (line.includes(startKeywordInput)) { keywordReached = true; includePending = true; }
+        else includePending = false;
+      }
     } else if (pendingUser) {
       pendingContent += "\n" + line.trim();
     }
   }
-
-  if (pendingUser && pendingContent) {
-    const includeMessage = processMessage(users, pendingUser, pendingContent);
-    if (includeMessage) includedMessages++; else skippedMessages++;
+  if (pendingUser && pendingContent && includePending) {
+    const included = processMessage(users, pendingUser, pendingContent);
+    if (included) includedMessages++; else skippedMessages++;
   }
 
-  // 🔹 Update local storage for cumulative or current-only
   let storedData = JSON.parse(localStorage.getItem("userScores") || "{}");
   let resultData = {};
-
   if (currentOnly) resultData = users;
   else {
     for (const [name, data] of Object.entries(users)) {
@@ -266,7 +258,6 @@ function resetScores() {
   alert("הניקוד המצטבר אופס בהצלחה!");
 }
 
-// 🔹 Toggle analyze button on text change
 document.getElementById("textInput").addEventListener("input", toggleAnalyzeButton);
 window.addEventListener("DOMContentLoaded", toggleAnalyzeButton);
 </script>
