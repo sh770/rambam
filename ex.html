@@ -1,190 +1,202 @@
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
-<meta charset="UTF-8">
-<title>ניתוח ניקוד לפי הודעות וואטסאפ</title>
-<style>
-body {
-  font-family: "Assistant", sans-serif;
-  background: #fafafa;
-  margin: 0;
-  padding: 2rem;
-  text-align: center;
-}
-textarea {
-  width: 90%;
-  height: 200px;
-  direction: rtl;
-}
-button {
-  margin: 0.5rem;
-  padding: 0.5rem 1rem;
-  font-size: 1rem;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-}
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-#results {
-  margin-top: 2rem;
-  background: white;
-  border-radius: 12px;
-  padding: 1rem;
-  box-shadow: 0 0 5px rgba(0,0,0,0.1);
-}
-</style>
+  <meta charset="UTF-8" />
+  <title>ניתוח ניקוד לפי הודעות וואטסאפ</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2em; direction: rtl; }
+    textarea { width: 100%; height: 200px; margin-top: 1em; }
+    table { border-collapse: collapse; margin-top: 1em; width: 100%; }
+    th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: center; }
+    h2 { margin-top: 2em; }
+    .controls { margin-bottom: 1em; }
+    button { margin-left: 0.5em; padding: 0.5em 1em; cursor: pointer; }
+    input[type="date"], input[type="text"] { margin: 0.5em 0; padding: 0.4em; }
+  </style>
 </head>
 <body>
 
-<h2>ניתוח ניקוד לפי הודעות וואטסאפ</h2>
+  <h1>📊 ניתוח ניקוד לפי הודעות וואטסאפ</h1>
 
-<label>סנן הודעות מאז:</label><br>
-<select id="startOption">
-  <option value="none">הכל</option>
-  <option value="date">תאריך</option>
-  <option value="keyword">טקסט מסוים</option>
-</select>
+  <div class="controls">
+    <label>
+      סנן הודעות מאו:
+      <input type="date" id="filterDate" placeholder="dd.mm.yyyy" />
+    </label>
+    <br />
+    <label>
+      או החל מסיום טקסט זה:
+      <input type="text" id="filterText" placeholder="כתוב כאן את ההודעה שממנה להתחיל ספירה" />
+    </label>
+    <br />
+    <label>או העלה קובץ טקסט (txt):</label>
+    <input type="file" id="textFileInput" accept=".txt" />
+    <br />
+    <label>או העלה קובץ ZIP עם TXT:</label>
+    <input type="file" id="zipFileInput" accept=".zip" />
+  </div>
 
-<div id="dateInputContainer" style="display:none;">
-  <input type="date" id="startDate">
-</div>
+  <textarea id="textInput" placeholder="הדבק כאן את ייצוא הצ'אט או כתוב טקסט ידנית..."></textarea>
+  <br />
 
-<div id="keywordInputContainer" style="display:none;">
-  <input type="text" id="startKeywordInput" placeholder="הזן טקסט שממנו להתחיל ספירה">
-</div>
+  <button id="analyzeBtn" disabled onclick="analyzeText()">נתח</button>
+  <button onclick="clearAll()">נקה</button>
 
-<br><br>
+  <div id="error" style="color:red; margin-top:1em;"></div>
+  <div id="summary"></div>
+  <div id="details"></div>
 
-<label>או העלה קובץ טקסט של הצ'אט (.txt):</label><br>
-<input type="file" id="textFileInput" accept=".txt"><br><br>
+  <script>
+    // 🧠 Utility: מזהה כל פורמט תאריך אפשרי מוואטסאפ
+    function parseWhatsAppDate(line) {
+      // Match examples: [1.11.2025, 21:05], 1.11.2025, 21:05 -, 1.11.25 21:05 -
+      const regex = /(?:\[)?(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?,?\s*(\d{1,2}):(\d{2})/;
+      const match = line.match(regex);
+      if (!match) return null;
 
-<label>או העלה קובץ ZIP עם קובץ הצ'אט בפנים:</label><br>
-<input type="file" id="zipFileInput" accept=".zip"><br><br>
+      const day = match[1].padStart(2, '0');
+      const month = match[2].padStart(2, '0');
+      let year = match[3];
+      const hour = match[4].padStart(2, '0');
+      const minute = match[5].padStart(2, '0');
 
-<textarea id="chatInput" placeholder="הדבק כאן את תוכן הצ'אט..."></textarea><br>
-<button id="clearTextButton">נקה תיבת טקסט</button>
-<button id="analyzeButton" disabled>נתח</button>
-
-<div id="results"></div>
-
-<script>
-// --- הצגת שדות לפי בחירה ---
-document.getElementById("startOption").addEventListener("change", function() {
-  document.getElementById("dateInputContainer").style.display =
-    this.value === "date" ? "block" : "none";
-  document.getElementById("keywordInputContainer").style.display =
-    this.value === "keyword" ? "block" : "none";
-});
-
-// --- נקה טקסט ---
-document.getElementById("clearTextButton").addEventListener("click", function() {
-  document.getElementById("chatInput").value = "";
-  document.getElementById("results").innerHTML = "";
-  document.getElementById("analyzeButton").disabled = true;
-});
-
-// --- הפעלת כפתור ניתוח רק כשהוזן טקסט ---
-document.getElementById("chatInput").addEventListener("input", function() {
-  document.getElementById("analyzeButton").disabled = this.value.trim() === "";
-});
-
-// --- פונקציה לזיהוי תאריך ---
-function parseWhatsAppDate(line) {
-  try {
-    line = line.replace(/\u202c|\u202a|\u200e/g, "").trim();
-    const patterns = [
-      /\[(\d{1,2})\.(\d{1,2}),\s*(\d{1,2}):(\d{2})\]/,
-      /(\d{1,2})\.(\d{1,2})\.(\d{4}),\s*(\d{1,2}):(\d{2})/,
-      /(\d{1,2})\.(\d{1,2})\.(\d{2}),\s*(\d{1,2}):(\d{2})/,
-      /(\d{1,2})\.(\d{1,2}),\s*(\d{1,2}):(\d{2})/,
-      /(\d{1,2}):(\d{2})\s*(\d{1,2})\.(\d{1,2})\.(\d{4})/,
-      /(\d{1,2})\.(\d{1,2})\.(\d{4})\s*(\d{1,2}):(\d{2})/
-    ];
-    for (const p of patterns) {
-      const m = line.match(p);
-      if (m) {
-        let day, month, year, hour, minute;
-        if (p === patterns[4]) [, hour, minute, day, month, year] = m;
-        else [, day, month, year, hour, minute] = m;
-        year = year?.length === 2 ? "20" + year : year || new Date().getFullYear();
-        return new Date(`${year}-${month}-${day}T${hour}:${minute}:00`);
-      }
-    }
-  } catch { return null; }
-  return null;
-}
-
-// --- קריאת קובץ TXT ---
-document.getElementById("textFileInput").addEventListener("change", function(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    document.getElementById("chatInput").value = ev.target.result;
-    document.getElementById("analyzeButton").disabled = false;
-  };
-  reader.readAsText(file);
-});
-
-// --- קריאת קובץ ZIP ---
-document.getElementById("zipFileInput").addEventListener("change", async function(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  const JSZip = await import("https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm");
-  const zip = await JSZip.default.loadAsync(file);
-  const txtFile = Object.keys(zip.files).find(name => name.endsWith(".txt"));
-  if (!txtFile) return alert("לא נמצא קובץ טקסט בתוך ה־ZIP");
-  const content = await zip.files[txtFile].async("string");
-  document.getElementById("chatInput").value = content;
-  document.getElementById("analyzeButton").disabled = false;
-});
-
-// --- ניתוח הודעות ---
-document.getElementById("analyzeButton").addEventListener("click", function() {
-  const button = this;
-  button.disabled = true; // מניעת ספירה כפולה
-
-  const text = document.getElementById("chatInput").value;
-  const startOption = document.getElementById("startOption").value;
-  const startDate = document.getElementById("startDate").value
-    ? new Date(document.getElementById("startDate").value)
-    : null;
-  const startKeyword = document.getElementById("startKeywordInput").value?.trim() || "";
-  const lines = text.split("\n");
-
-  let results = [];
-  let keywordReached = startOption !== "keyword";
-  let currentUser = null;
-  let currentContent = "";
-  let includeCurrent = true;
-
-  for (const line of lines) {
-    const match = line.match(/^(?:\[?\d{1,2}\.\d{1,2}(?:\.\d{2,4})?,?\s*\d{1,2}:\d{2}.*?\]?\s*-?\s*)([^:]+):\s*(.*)$/);
-    if (match) {
-      const msgDate = parseWhatsAppDate(line);
-      let include = true;
-      if (startOption === "date" && startDate && msgDate && msgDate < startDate) include = false;
-      if (startOption === "keyword" && !keywordReached) {
-        if (line.includes(startKeyword)) { keywordReached = true; include = true; }
-        else include = false;
+      if (!year) {
+        const now = new Date();
+        year = now.getFullYear();
+      } else if (year.length === 2) {
+        year = '20' + year;
       }
 
-      if (currentUser && includeCurrent) results.push({ user: currentUser, text: currentContent });
-      currentUser = match[1].trim();
-      currentContent = match[2].trim();
-      includeCurrent = include;
-    } else if (currentUser) {
-      currentContent += "\n" + line.trim();
+      const iso = `${year}-${month}-${day}T${hour}:${minute}:00`;
+      return new Date(iso);
     }
-  }
-  if (currentUser && includeCurrent) results.push({ user: currentUser, text: currentContent });
 
-  document.getElementById("results").innerText =
-    "נמצאו " + results.length + " הודעות לאחר הסינון.";
-});
-</script>
+    // 🧩 ניהול כפתור הניתוח
+    const analyzeBtn = document.getElementById("analyzeBtn");
+    const textInput = document.getElementById("textInput");
+    const textFileInput = document.getElementById("textFileInput");
+    const zipFileInput = document.getElementById("zipFileInput");
+
+    [textInput, textFileInput, zipFileInput].forEach(el => {
+      el.addEventListener("input", () => {
+        analyzeBtn.disabled = false;
+      });
+      el.addEventListener("change", () => {
+        analyzeBtn.disabled = false;
+      });
+    });
+
+    // 🧹 ניקוי מוחלט
+    function clearAll() {
+      document.getElementById("textInput").value = "";
+      document.getElementById("filterDate").value = "";
+      document.getElementById("filterText").value = "";
+      document.getElementById("error").innerText = "";
+      document.getElementById("summary").innerHTML = "";
+      document.getElementById("details").innerHTML = "";
+      analyzeBtn.disabled = true;
+    }
+
+    // 📥 קריאת קובץ טקסט רגיל
+    textFileInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        textInput.value = ev.target.result;
+        analyzeBtn.disabled = false;
+      };
+      reader.readAsText(file);
+    });
+
+    // 📦 קריאת קובץ ZIP עם TXT
+    zipFileInput.addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const JSZip = await import("https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm");
+      const data = await file.arrayBuffer();
+      const zip = await JSZip.default.loadAsync(data);
+      for (const fileName in zip.files) {
+        if (fileName.endsWith(".txt")) {
+          const txt = await zip.files[fileName].async("string");
+          textInput.value = txt;
+          analyzeBtn.disabled = false;
+          break;
+        }
+      }
+    });
+
+    // 🧮 הפונקציה הראשית
+    function analyzeText() {
+      const errorEl = document.getElementById("error");
+      const summaryEl = document.getElementById("summary");
+      const detailsEl = document.getElementById("details");
+      const filterDateValue = document.getElementById("filterDate").value;
+      const filterTextValue = document.getElementById("filterText").value.trim();
+      const rawText = textInput.value.trim();
+
+      analyzeBtn.disabled = true; // מניעת ניתוח כפול
+
+      if (!rawText) {
+        errorEl.innerText = "אנא הזן טקסט לניתוח.";
+        return;
+      }
+      errorEl.innerText = "";
+
+      // פיצול שורות
+      const lines = rawText.split(/\r?\n/);
+      const users = {};
+      let filterDate = null;
+      if (filterDateValue) filterDate = new Date(filterDateValue + "T00:00:00");
+
+      let include = !filterTextValue && !filterDate; // אם אין סינון, כל ההודעות נכללות
+
+      lines.forEach(line => {
+        // דילוג על הודעות מערכת
+        if (/<המדיה לא נכללה>|הצטרף\/ה לקבוצה|שינה את שם הקבוצה/.test(line)) return;
+
+        const dateObj = parseWhatsAppDate(line);
+        if (filterDate && dateObj && dateObj < filterDate) return; // דילוג לפני התאריך
+
+        if (!include && filterTextValue && line.includes(filterTextValue)) {
+          include = true; // מתחילים לכלול מהשורה הזאת והלאה
+          return; // לא סופרים את השורה של עצמה
+        }
+
+        if (!include) return; // עדיין לפני הסינון
+
+        const match = line.match(/(?:\] )?([^:]+):(.*)/);
+        if (!match) return;
+
+        const name = match[1].trim();
+        const content = match[2].trim();
+
+        const hasCheck = content.includes("✔️");
+        const hasV = content.includes("✅");
+        const score = hasV ? 3 : hasCheck ? 2 : 1;
+
+        if (!users[name]) users[name] = { score: 0, messages: 0, checkCount: 0, vCount: 0 };
+        users[name].messages++;
+        users[name].score += score;
+        if (hasCheck) users[name].checkCount++;
+        if (hasV) users[name].vCount++;
+      });
+
+      // 🔢 יצירת טבלאות
+      const summaryRows = Object.entries(users)
+        .map(([n, d]) => `<tr><td>${n}</td><td>${d.score}</td><td>${d.messages}</td></tr>`)
+        .join("");
+      summaryEl.innerHTML = `
+        <h2>טבלת ניקוד</h2>
+        <table><thead><tr><th>שם</th><th>ניקוד</th><th>מספר הודעות</th></tr></thead><tbody>${summaryRows}</tbody></table>`;
+      
+      const detailsRows = Object.entries(users)
+        .map(([n, d]) => `<tr><td>${n}</td><td>${d.messages}</td><td>${d.checkCount}</td><td>${d.vCount}</td></tr>`)
+        .join("");
+      detailsEl.innerHTML = `
+        <h2>פירוט סימנים</h2>
+        <table><thead><tr><th>שם</th><th>מס'</th><th>✔️</th><th>✅</th></tr></thead><tbody>${detailsRows}</tbody></table>`;
+    }
+  </script>
 </body>
 </html>
