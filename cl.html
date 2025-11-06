@@ -169,7 +169,9 @@
             }
 
             try {
-                const zip = await JSZip.loadAsync(file);
+                // קורא את הקובץ כ-ArrayBuffer
+                const arrayBuffer = await file.arrayBuffer();
+                const zip = await JSZip.loadAsync(arrayBuffer);
                 let textContent = '';
                 
                 // מחפש קבצי טקסט בתוך ה-ZIP
@@ -188,6 +190,7 @@
                 }
             } catch (error) {
                 alert('שגיאה בחילוץ הקובץ: ' + error.message);
+                console.error(error);
             }
         }
 
