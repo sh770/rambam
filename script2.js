@@ -26,10 +26,15 @@ function analyzeText() {
 
   errorEl.innerText = "";
 
-  // 🔄 ניקוי הטקסט - הסרת תאריכים עם או בלי סוגריים
+  // 🔄 ניקוי הטקסט - הסרת תאריכים בכל הפורמטים
   let cleanText = textInput;
-  // מחיקת תאריכים בפורמט: [DD.MM, HH:MM] או [DD.MM.YYYY, HH:MM] או DD.MM.YYYY, HH:MM
-  cleanText = cleanText.replace(/\[?\d{1,2}\.\d{1,2}(?:\.\d{4})?,\s*\d{1,2}:\d{2}\]?\s*-?\s*/g, '');
+  
+  // הסרת תאריכים בפורמט: [DD.MM, HH:MM] או DD.MM, HH:MM (עם או בלי סוגריים)
+  // וגם: [DD.MM.YYYY, HH:MM] או DD.MM.YYYY, HH:MM
+  cleanText = cleanText.split('\n').map(line => {
+    // הסרת תאריך בתחילת השורה
+    return line.replace(/^\[?\d{1,2}\.\d{1,2}(?:\.\d{4})?,?\s*\d{1,2}:\d{2}\]?\s*-?\s*/, '');
+  }).join('\n');
 
   const lines = cleanText.split('\n');
   const users = {};
