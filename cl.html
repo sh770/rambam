@@ -173,24 +173,40 @@
                 const arrayBuffer = await file.arrayBuffer();
                 const zip = await JSZip.loadAsync(arrayBuffer);
                 let textContent = '';
+                let filesFound = 0;
                 
-                // מחפש קבצי טקסט בתוך ה-ZIP
-                for (let filename in zip.files) {
-                    if (filename.endsWith('.txt')) {
-                        const content = await zip.files[filename].async('string');
-                        textContent += content + '\n\n';
+                // עובר על כל הקבצים בתוך ה-ZIP
+                const fileNames = Object.keys(zip.files);
+                
+                for (let filename of fileNames) {
+                    const zipEntry = zip.files[filename];
+                    
+                    // מדלג על תיקיות
+                    if (zipEntry.dir) continue;
+                    
+                    // מחפש קבצי טקסט
+                    if (filename.toLowerCase().endsWith('.txt')) {
+                        try {
+                            // מנסה לקרוא עם קידוד UTF-8
+                            const content = await zipEntry.async('string');
+                            textContent += `--- ${filename} ---\n${content}\n\n`;
+                            filesFound++;
+                        } catch (err) {
+                            console.error(`שגיאה בקריאת ${filename}:`, err);
+                        }
                     }
                 }
                 
-                if (textContent) {
+                if (filesFound > 0) {
                     originalText = textContent;
                     document.getElementById('output').value = textContent;
+                    alert(`נמצאו ${filesFound} קבצי טקסט`);
                 } else {
-                    alert('לא נמצאו קבצי טקסט בקובץ ה-ZIP');
+                    alert('לא נמצאו קבצי טקסט בקובץ ה-ZIP. הקבצים בתוך ה-ZIP: ' + fileNames.join(', '));
                 }
             } catch (error) {
                 alert('שגיאה בחילוץ הקובץ: ' + error.message);
-                console.error(error);
+                console.error('פרטי השגיאה:', error);
             }
         }
 
