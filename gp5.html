@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מחלץ טקסט מ-ZIP עם סינון חכם</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+        }
+        .upload-section, .filter-section {
+            background: #fafafa;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        textarea {
+            width: 100%;
+            height: 400px;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            resize: vertical;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            background: #007bff;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .radio-group {
+            margin: 15px 0;
+        }
+        .radio-group label {
+            display: block;
+            margin: 5px 0;
+            cursor: pointer;
+        }
+        .filter-input {
+            display: none;
+        }
+        .filter-input.active {
+            display: block;
+        }
+        .info {
+            background: #e8f4fd;
+            padding: 8px;
+            border-radius: 5px;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            display: none;
+        }
+        .status.success { background: #e8f5e9; color: #2e7d32; }
+        .status.error { background: #ffebee; color: #c62828; }
+        .status.info { background: #e3f2fd; color: #1565c0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>מחלץ טקסט מ-ZIP עם סינון</h1>
+
+        <div class="upload-section">
+            <h3>העלאת קובץ ZIP</h3>
+            <input type="file" id="zipFile" accept=".zip">
+            <button onclick="extractText()">חלץ טקסט</button>
+            <div id="statusMessage" class="status info"></div>
+        </div>
+
+        <div class="filter-section">
+            <h3>סינון טקסט</h3>
+
+            <div class="radio-group">
+                <label>
+                    <input type="radio" name="filterType" value="none" checked onchange="toggleFilterInput()">
+                    ללא סינון
+                </label>
+                <label>
+                    <input type="radio" name="filterType" value="word" onchange="toggleFilterInput()">
+                    סינון לפי מילה / ביטוי
+                </label>
+                <label>
+                    <input type="radio" name="filterType" value="date" onchange="toggleFilterInput()">
+                    סינון לפי תאריך
+                </label>
+            </div>
+
+            <!-- קלט למילה -->
+            <div id="wordFilter" class="filter-input">
+                <input type="text" id="searchWord" placeholder="הכנס מילה או ביטוי לחיפוש">
+                <div class="radio-group">
+                    <label><input type="radio" name="wordDirection" value="before" checked>מחק עד לפני המילה</label>
+                    <label><input type="radio" name="wordDirection" value="after">מחק אחרי המילה</label>
+                </div>
+            </div>
+
+            <!-- קלט לתאריך -->
+            <div id="dateFilter" class="filter-input">
+                <input type="date" id="searchDate">
+                <div class="radio-group">
+                    <label><input type="radio" name="dateDirection" value="before" checked>מחק עד לפני התאריך</label>
+                    <label><input type="radio" name="dateDirection" value="after">מחק אחרי התאריך</label>
+                </div>
+            </div>
+
+            <button onclick="applyFilter()">החל סינון</button>
+            <button onclick="resetText()">אפס לטקסט המקורי</button>
+        </div>
+
+        <h3>תוצאה:</h3>
+        <textarea id="output" placeholder="הטקסט יופיע כאן..."></textarea>
+    </div>
+
+    <script>
+        let originalText = ''; // ישמור את הטקסט המקורי לצורך איפוס מאוחר יותר
+
+        // פונקציה להצגת הודעת סטטוס ידידותית במקום alert
+        function showStatus(message, type = 'info') {
+            const status = document.getElementById('statusMessage');
+            status.textContent = message;
+            status.className = 'status ' + type;
+            status.style.display = 'block';
+        }
+
+        function hideStatusAfterDelay() {
+            setTimeout(() => {
+                document.getElementById('statusMessage').style.display = 'none';
+            }, 4000);
+        }
+
+        // מציג או מסתיר שדות בהתאם לסוג הסינון שנבחר
+        function toggleFilterInput() {
+            const filterType = document.querySelector('input[name="filterType"]:checked').value;
+            document.getElementById('wordFilter').classList.remove('active');
+            document.getElementById('dateFilter').classList.remove('active');
+            if (filterType === 'word') document.getElementById('wordFilter').classList.add('active');
+            if (filterType === 'date') document.getElementById('dateFilter').classList.add('active');
+        }
+
+        // פונקציה ראשית לקריאת ZIP
+        function extractText() {
+            const fileInput = document.getElementById('zipFile');
+            const file = fileInput.files[0];
+            if (!file) {
+                showStatus('אנא בחר קובץ ZIP', 'error');
+                hideStatusAfterDelay();
+                return;
+            }
+
+            const reader = new FileReader(); // יצירת FileReader לקריאת הקובץ
+
+            // ברגע שהקריאה מסתיימת
+            reader.onload = async function(e) {
+                try {
+                    const arrayBuffer = e.target.result;
+                    const zip = await JSZip.loadAsync(arrayBuffer);
+                    await processZipFiles(zip);
+                } catch (err) {
+                    showStatus('שגיאה בקריאת הקובץ: ' + err.message, 'error');
+                    hideStatusAfterDelay();
+                }
+            };
+
+            // במקרה של שגיאת קריאה
+            reader.onerror = function() {
+                showStatus('שגיאה בקריאת הקובץ (גישה נחסמה או תקלה בקובץ)', 'error');
+                hideStatusAfterDelay();
+            };
+
+            reader.readAsArrayBuffer(file); // קריאה בפועל של הקובץ
+        }
+
+        // פונקציה שמעבדת את תוכן קבצי ה-ZIP
+        async function processZipFiles(zip) {
+            let textContent = '';
+            let filesFound = 0;
+
+            for (let filename of Object.keys(zip.files)) {
+                const entry = zip.files[filename];
+                if (entry.dir) continue;
+                if (filename.toLowerCase().endsWith('.txt')) {
+                    const content = await entry.async('string');
+                    textContent += `--- ${filename} ---\n${content}\n\n`;
+                    filesFound++;
+                }
+            }
+
+            if (filesFound > 0) {
+                originalText = textContent;
+                document.getElementById('output').value = textContent;
+                showStatus(`נמצאו ${filesFound} קובצי טקסט`, 'success');
+            } else {
+                showStatus('לא נמצאו קובצי טקסט ב-ZIP', 'error');
+            }
+            hideStatusAfterDelay();
+        }
+
+        // מפעיל את הסינון על פי סוג הבחירה
+        function applyFilter() {
+            if (!originalText) {
+                showStatus('אנא חלץ תחילה טקסט מקובץ ZIP', 'error');
+                hideStatusAfterDelay();
+                return;
+            }
+
+            const filterType = document.querySelector('input[name="filterType"]:checked').value;
+            let filteredText = originalText;
+
+            if (filterType === 'word') {
+                const searchWord = document.getElementById('searchWord').value;
+                const direction = document.querySelector('input[name="wordDirection"]:checked').value;
+                if (!searchWord) {
+                    showStatus('אנא הזן מילה או ביטוי', 'error');
+                    hideStatusAfterDelay();
+                    return;
+                }
+                filteredText = filterByWord(originalText, searchWord, direction);
+            } else if (filterType === 'date') {
+                const searchDate = document.getElementById('searchDate').value;
+                const direction = document.querySelector('input[name="dateDirection"]:checked').value;
+                if (!searchDate) {
+                    showStatus('אנא בחר תאריך', 'error');
+                    hideStatusAfterDelay();
+                    return;
+                }
+                filteredText = filterByDate(originalText, searchDate, direction);
+            }
+
+            document.getElementById('output').value = filteredText;
+            showStatus('הסינון הוחל בהצלחה', 'success');
+            hideStatusAfterDelay();
+        }
+
+        // סינון לפי מילה / ביטוי
+        function filterByWord(text, word, direction) {
+            const index = text.indexOf(word);
+            if (index === -1) {
+                showStatus('המילה לא נמצאה בטקסט', 'error');
+                hideStatusAfterDelay();
+                return text;
+            }
+            return (direction === 'before')
+                ? text.substring(index)      // משאיר מהמילה והלאה
+                : text.substring(0, index);  // משאיר רק עד המילה
+        }
+
+        // סינון לפי תאריך
+        function filterByDate(text, dateStr, direction) {
+            const [year, month, day] = dateStr.split('-');
+            const d = parseInt(day);
+            const m = parseInt(month);
+
+            const patterns = [
+                new RegExp(`\\b0?${d}/0?${m}/${year}\\b`),
+                new RegExp(`\\b0?${d}-0?${m}-${year}\\b`),
+                new RegExp(`\\b${year}-0?${m}-0?${d}\\b`),
+                new RegExp(`\\b0?${d}\\.0?${m}\\.${year}\\b`),
+            ];
+
+            let foundMatch = null;
+            let foundIndex = -1;
+
+            for (let pattern of patterns) {
+                const match = text.match(pattern);
+                if (match) {
+                    foundMatch = match[0];
+                    foundIndex = match.index;
+                    break;
+                }
+            }
+
+            if (foundIndex === -1) {
+                showStatus('התאריך לא נמצא בטקסט', 'error');
+                hideStatusAfterDelay();
+                return text;
+            }
+
+            return (direction === 'before')
+                ? text.substring(foundIndex)      // משאיר מהתאריך והלאה
+                : text.substring(0, foundIndex);  // משאיר עד התאריך
+        }
+
+        // מאפס את השדה לטקסט המקורי
+        function resetText() {
+            if (!originalText) {
+                showStatus('אין טקסט לאיפוס', 'error');
+                hideStatusAfterDelay();
+                return;
+            }
+            document.getElementById('output').value = originalText;
+            showStatus('הטקסט אופס למקור', 'info');
+            hideStatusAfterDelay();
+        }
+    </script>
+</body>
+</html>
