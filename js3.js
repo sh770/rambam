@@ -261,3 +261,15 @@ function displayStoredParticipants() {
       </tbody>
     </table>`;
 }
+
+// 🧠 טוען אוטומטית את מצב הכפתור עם טעינת הדף
+window.addEventListener("DOMContentLoaded", () => {
+  toggleAnalyzeButton();
+  displayStoredParticipants();
+  
+  // 🔗 חיבור אירוע שינוי טקסט
+  const textInput = document.getElementById("textInput");
+  textInput.addEventListener("input", toggleAnalyzeButton);
+  textInput.addEventListener("paste", () => setTimeout(toggleAnalyzeButton, 10));
+  textInput.addEventListener("cut", () => setTimeout(toggleAnalyzeButton, 10));
+});
