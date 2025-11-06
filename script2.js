@@ -26,16 +26,13 @@ function analyzeText() {
 
   errorEl.innerText = "";
 
- // 🔄 ניקוי הטקסט - הסרת כל פורמט של תאריך בתחילת השורה
+// הסרת כל פורמט תאריך בתחילת השורה, עם או בלי סוגריים
 cleanText = cleanText.split('\n').map(line => {
-  // הסרת תאריך בתחילת השורה, עם או בלי סוגריים
-  // פורמטים:
-  // [DD.MM, HH:MM] | DD.MM, HH:MM
-  // [DD.MM.YYYY, HH:MM] | DD.MM.YYYY, HH:MM
-  // גם עם תווים נוספים כמו מקף אחרי התאריך
-  return line.replace(/^\[?\d{1,2}\.\d{1,2}(?:\.\d{2,4})?,?\s*\d{1,2}:\d{2}\]?\s*-?\s*/, '');
+  return line.replace(
+    /^\s*(?:\[(\d{1,2}\.\d{1,2}(?:\.\d{2,4})?,?\s*\d{1,2}:\d{2})\]|(\d{1,2}\.\d{1,2}(?:\.\d{2,4})?,?\s*\d{1,2}:\d{2}))\s*-?\s*/, 
+    ''
+  );
 }).join('\n');
-
   const lines = cleanText.split('\n');
   const users = {};
   let pendingUser = null;
