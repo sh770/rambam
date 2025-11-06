@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ניתוח טקסט</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="icon" href="favicon.ico" type="image/x-icon" />
+    <script src="js3.js" defer></script>
+  </head>
+  <body>
+    <h1>ניתוח טקסט לפי משתמשים</h1>
+
+    <textarea
+      id="textInput"
+      oninput="onTextChange()"
+      placeholder="הדבק כאן את הטקסט..."
+    ></textarea>
+
+    <br />
+
+<div class="button-container">
+  
+
+  <button id="analyzeBtn" onclick="analyzeText()" disabled>
+      ניתוח טקסט 🔍
+    </button>
+
+    <button onclick="clearAllData()">ניקוי כללי 🧹</button>
+
+    <button onclick="window.open('wheel.html', '_blank')">לדף ההגרלה 💥</button>
+</div>
+
+    
+
+    <div id="error" class="error"></div>
+    <div id="summary"></div>
+    <div id="details"></div>
+  </body>
+</html>
