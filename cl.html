@@ -235,35 +235,41 @@
         function deleteUntilDate(text, dateStr) {
             // ממיר את התאריך מפורמט YYYY-MM-DD לפורמטים שונים
             const [year, month, day] = dateStr.split('-');
+            const d = parseInt(day);
+            const m = parseInt(month);
             
-            // פורמטים אפשריים
-            const formats = [
-                `${day}/${month}/${year}`,      // DD/MM/YYYY
-                `${day}-${month}-${year}`,      // DD-MM-YYYY
-                `${year}-${month}-${day}`,      // YYYY-MM-DD
-                `${parseInt(day)}/${parseInt(month)}/${year}`,  // ללא אפסים מובילים
+            // יוצר ביטויים רגולריים גמישים שמתעלמים מפסיקים ותווים אחרים
+            const patterns = [
+                // DD/MM/YYYY או D/M/YYYY
+                new RegExp(`\\b0?${d}/0?${m}/${year}\\b`),
+                // DD-MM-YYYY או D-M-YYYY
+                new RegExp(`\\b0?${d}-0?${m}-${year}\\b`),
+                // YYYY-MM-DD או YYYY-M-D
+                new RegExp(`\\b${year}-0?${m}-0?${d}\\b`),
+                // DD.MM.YYYY או D.M.YYYY
+                new RegExp(`\\b0?${d}\\.0?${m}\\.${year}\\b`),
             ];
 
+            let foundMatch = null;
             let foundIndex = -1;
-            let foundFormat = '';
 
             // מחפש את התאריך בכל הפורמטים
-            for (let format of formats) {
-                const index = text.indexOf(format);
-                if (index !== -1) {
-                    foundIndex = index;
-                    foundFormat = format;
+            for (let pattern of patterns) {
+                const match = text.match(pattern);
+                if (match) {
+                    foundMatch = match[0];
+                    foundIndex = match.index;
                     break;
                 }
             }
 
             if (foundIndex === -1) {
-                alert('התאריך לא נמצא בטקסט');
+                alert('התאריך לא נמצא בטקסט. נסה פורמטים: DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD');
                 return text;
             }
 
             // מוחק הכל עד אחרי התאריך
-            return text.substring(foundIndex + foundFormat.length);
+            return text.substring(foundIndex + foundMatch.length);
         }
 
         function resetText() {
