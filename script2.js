@@ -28,8 +28,8 @@ function analyzeText() {
 
   // 🔄 ניקוי הטקסט - הסרת תאריכים עם או בלי סוגריים
   let cleanText = textInput;
-  // מחיקת תאריכים בפורמט: [DD.MM.YYYY, HH:MM] או DD.MM.YYYY, HH:MM
-  cleanText = cleanText.replace(/\[?\d{1,2}\.\d{1,2}\.\d{4},\s*\d{1,2}:\d{2}\]?\s*-\s*/g, '');
+  // מחיקת תאריכים בפורמט: [DD.MM, HH:MM] או [DD.MM.YYYY, HH:MM] או DD.MM.YYYY, HH:MM
+  cleanText = cleanText.replace(/\[?\d{1,2}\.\d{1,2}(?:\.\d{4})?,\s*\d{1,2}:\d{2}\]?\s*-?\s*/g, '');
 
   const lines = cleanText.split('\n');
   const users = {};
