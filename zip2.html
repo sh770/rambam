@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>מחלץ טקסט מ-ZIP</title>
+
+    <!-- עיצוב כללי של האתר -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- JSZip -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+
+<h1>מחלץ טקסט מ-ZIP</h1>
+
+<div class="tool-section">
+
+    <input type="file" id="zipFile" accept=".zip">
+
+    <div class="button-container">
+        <button onclick="extractText()">חלץ טקסט</button>
+    </div>
+
+    <div id="statusMessage" class="status"></div>
+
+    <h3>חיפוש מילה (מופע הבא)</h3>
+    <input type="text" id="searchWord" placeholder="מילה או ביטוי">
+
+    <div class="button-container">
+        <button onclick="findNextWord()">חפש מופע הבא</button>
+    </div>
+
+    <h3>טווח טקסט</h3>
+    <input type="text" id="fromText" placeholder="טקסט התחלה">
+    <input type="text" id="toText" placeholder="טקסט סיום">
+
+    <div class="button-container">
+        <button onclick="filterByTextRange()">סנן טווח טקסט</button>
+    </div>
+
+    <h3>טווח תאריכים</h3>
+    <input type="date" id="fromDate">
+    <input type="date" id="toDate">
+
+    <div class="button-container">
+        <button onclick="filterByDateRange()">סנן טווח תאריכים</button>
+    </div>
+
+    <div class="button-container">
+        <button onclick="resetText()">איפוס</button>
+        <button onclick="clearOutput()">נקה</button>
+        <button onclick="copyToClipboard()">העתק</button>
+    </div>
+
+    <div id="output" class="output" contenteditable="true"></div>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
