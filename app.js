@@ -2,11 +2,11 @@
 // משתנים גלובליים
 // =====================
 let originalText = '';        // שמירת הטקסט המקורי
-let searchIndex = 0;          // אינדקס חיפוש נוכחי
+let searchIndex = 0;          // אינדקס החיפוש הנוכחי
 let lastSearchWord = '';      // המילה האחרונה שחופשה
 
 // =====================
-// פונקציות עזר כלליות
+// פונקציות עזר
 // =====================
 function showStatus(message, type = 'info') {
     const s = document.getElementById('statusMessage');
@@ -33,10 +33,10 @@ function escapeHtml(text) {
 }
 
 // =====================
-// פירוק תאריך בצורה בטוחה
+// נירמול תאריך מהטקסט לפורמט YYYY-MM-DD
 // =====================
-function parseDateFromText(dateText) {
-    let year, month, day;
+function normalizeDateFromText(dateText) {
+    let day, month, year;
 
     // פורמט YYYY-MM-DD
     if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(dateText)) {
@@ -50,8 +50,10 @@ function parseDateFromText(dateText) {
         year = parseInt(match[3], 10);
     }
 
-    // יצירת תאריך עם שעה בטוחה
-    return new Date(year, month - 1, day, 12, 0, 0);
+    // מחזיר מחרוזת בפורמט אחיד עם אפס מוביל
+    const dd = day < 10 ? '0'+day : day;
+    const mm = month < 10 ? '0'+month : month;
+    return `${year}-${mm}-${dd}`;
 }
 
 // =====================
@@ -70,6 +72,7 @@ function extractText() {
             const zip = await JSZip.loadAsync(e.target.result);
             let result = '';
             let count = 0;
+
             for (let name in zip.files) {
                 const entry = zip.files[name];
                 if (!entry.dir && name.toLowerCase().endsWith('.txt')) {
@@ -78,19 +81,23 @@ function extractText() {
                     count++;
                 }
             }
+
             if (count === 0) {
                 showStatus('No text files found', 'error');
                 return;
             }
+
             originalText = result;
             setOutputText(result);
             searchIndex = 0;
             lastSearchWord = '';
             showStatus(`Found ${count} files`, 'success');
+
         } catch {
             showStatus('Failed to read ZIP file', 'error');
         }
     };
+
     reader.readAsArrayBuffer(file);
 }
 
@@ -103,22 +110,28 @@ function findNextWord() {
         showStatus('No text or search word', 'error');
         return;
     }
+
     if (word !== lastSearchWord) {
         searchIndex = 0;
         lastSearchWord = word;
     }
+
     const idx = originalText.indexOf(word, searchIndex);
     if (idx === -1) {
         showStatus('No more matches', 'info');
         return;
     }
+
     searchIndex = idx + word.length;
+
     document.getElementById('output').innerHTML =
         escapeHtml(originalText.substring(0, idx)) +
         '<mark>' + escapeHtml(word) + '</mark>' +
         escapeHtml(originalText.substring(idx + word.length));
+
     const mark = document.querySelector('mark');
     if (mark) mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
     showStatus('Match found', 'success');
 }
 
@@ -128,16 +141,20 @@ function findNextWord() {
 function filterByTextRange() {
     const from = document.getElementById('fromText').value;
     const to = document.getElementById('toText').value;
+
     if (!from || !to) {
         showStatus('Please enter start and end text', 'error');
         return;
     }
+
     const start = originalText.indexOf(from);
     const end = originalText.indexOf(to, start + from.length);
+
     if (start === -1 || end === -1) {
         showStatus('Range not found', 'error');
         return;
     }
+
     setOutputText(originalText.substring(start, end + to.length));
     showStatus('Text range applied', 'success');
 }
@@ -148,26 +165,28 @@ function filterByTextRange() {
 function filterByDateRange() {
     const fromInput = document.getElementById('fromDate').value; // YYYY-MM-DD
     const toInput   = document.getElementById('toDate').value;   // YYYY-MM-DD
+
     if (!fromInput || !toInput) {
         showStatus('Please select date range', 'error');
         return;
     }
 
-    // נורמליזציה: התחלה 00:00, סיום 23:59:59
-    const [fy, fm, fd] = fromInput.split('-').map(Number);
-    const [ty, tm, td] = toInput.split('-').map(Number);
-    const fromDate = new Date(fy, fm - 1, fd, 0, 0, 0);
-    const toDate   = new Date(ty, tm - 1, td, 23, 59, 59, 999);
+    const fromDate = fromInput;
+    const toDate   = toInput;
 
     const lines = originalText.split('\n');
     const result = [];
+
     for (let line of lines) {
         const match = line.match(/(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{4}|\d{4}-\d{1,2}-\d{1,2})/);
         if (!match) continue;
-        const parsedDate = parseDateFromText(match[0]);
-        if (!parsedDate) continue;
-        if (parsedDate >= fromDate && parsedDate <= toDate) result.push(line);
+
+        const normalized = normalizeDateFromText(match[0]);
+        if (!normalized) continue;
+
+        if (normalized >= fromDate && normalized <= toDate) result.push(line);
     }
+
     setOutputText(result.join('\n'));
     showStatus(result.length ? 'Date range applied' : 'No lines found in date range',
                result.length ? 'success' : 'info');
