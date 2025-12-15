@@ -80,3 +80,47 @@ button {
   color: white;
   cursor: pointer;
 }
+/* =========================
+   כלי חילוץ טקסט מ-ZIP
+   ========================= */
+
+.tool-section {
+  margin: 20px auto;
+  max-width: 950px;
+}
+
+/* אזור פלט – ייחודי לכלי */
+.tool-section .output {
+  width: 90%;
+  max-width: 950px;
+  height: 300px;
+  margin: 10px auto;
+  padding: 10px;
+  font-size: 16px;
+  font-family: monospace;
+  border-radius: 10px;
+  border: 1px solid #aaa;
+  background-color: #fff;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  text-align: left;
+  direction: ltr;
+}
+
+/* הודעות סטטוס – ייחודיות */
+.tool-section .status {
+  margin: 10px auto;
+  font-size: 16px;
+}
+
+.tool-section .status.success { color: green; }
+.tool-section .status.error   { color: red; }
+.tool-section .status.info    { color: #1565c0; }
+
+/* הדגשה של חיפוש */
+.tool-section mark {
+  background-color: #ffeb3b;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-weight: bold;
+}
