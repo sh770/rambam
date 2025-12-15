@@ -1,38 +1,77 @@
 // =====================
 // משתנים גלובליים
 // =====================
-let originalText = '';
-let searchIndex = 0;
-let lastSearchWord = '';
+
+let originalText = '';        // שמירת הטקסט המקורי שחולץ מה-ZIP
+let searchIndex = 0;          // אינדקס החיפוש הנוכחי
+let lastSearchWord = '';      // המילה האחרונה שחופשה
+
 
 // =====================
-// עזר
+// פונקציות עזר כלליות
 // =====================
+
 function showStatus(message, type = 'info') {
+    // הצגת הודעת סטטוס למשתמש
     const s = document.getElementById('statusMessage');
     s.textContent = message;
     s.className = 'status ' + type;
-    setTimeout(() => s.textContent = '', 3000);
+
+    // הסתרת ההודעה אחרי 3 שניות
+    setTimeout(() => {
+        s.textContent = '';
+        s.className = 'status';
+    }, 3000);
 }
 
 function setOutputText(text) {
+    // הצגת טקסט נקי (ללא HTML) באזור הפלט
     document.getElementById('output').textContent = text;
 }
 
 function getOutputText() {
+    // החזרת הטקסט הגולמי מתוך אזור הפלט
     return document.getElementById('output').textContent;
 }
 
 function escapeHtml(text) {
-    return text.replace(/&/g, '&amp;')
-               .replace(/</g, '&lt;')
-               .replace(/>/g, '&gt;');
+    // מניעת שבירת HTML והזרקת קוד
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
 }
 
+
 // =====================
-// חילוץ ZIP
+// פירוק תאריך בצורה בטוחה
 // =====================
+
+function parseDateFromText(dateText) {
+    // פורמט: YYYY-MM-DD
+    if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(dateText)) {
+        const [y, m, d] = dateText.split('-').map(Number);
+        return new Date(y, m - 1, d); // חודשים ב-JS מתחילים מ-0
+    }
+
+    // פורמטים: DD.MM.YYYY / DD/MM/YYYY / DD-MM-YYYY
+    const match = dateText.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+    if (!match) return null;
+
+    const day = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10);
+    const year = parseInt(match[3], 10);
+
+    return new Date(year, month - 1, day);
+}
+
+
+// =====================
+// חילוץ טקסט מקובץ ZIP
+// =====================
+
 function extractText() {
+    // קריאת הקובץ שנבחר
     const file = document.getElementById('zipFile').files[0];
     if (!file) {
         showStatus('Please select a ZIP file', 'error');
@@ -40,60 +79,103 @@ function extractText() {
     }
 
     const reader = new FileReader();
+
     reader.onload = async e => {
-        const zip = await JSZip.loadAsync(e.target.result);
-        let result = '';
-        let count = 0;
+        try {
+            const zip = await JSZip.loadAsync(e.target.result);
+            let result = '';
+            let count = 0;
 
-        for (let name in zip.files) {
-            const entry = zip.files[name];
-            if (!entry.dir && name.endsWith('.txt')) {
-                result += `--- ${name} ---\n${await entry.async('string')}\n\n`;
-                count++;
+            // מעבר על כל הקבצים ב-ZIP
+            for (let name in zip.files) {
+                const entry = zip.files[name];
+
+                // דילוג על תיקיות ורק קבצי TXT
+                if (!entry.dir && name.toLowerCase().endsWith('.txt')) {
+                    const content = await entry.async('string');
+                    result += `--- ${name} ---\n${content}\n\n`;
+                    count++;
+                }
             }
-        }
 
-        originalText = result;
-        setOutputText(result);
-        showStatus(`Found ${count} files`, 'success');
+            if (count === 0) {
+                showStatus('No text files found', 'error');
+                return;
+            }
+
+            // שמירת הטקסט המקורי
+            originalText = result;
+            setOutputText(result);
+            searchIndex = 0;
+            lastSearchWord = '';
+
+            showStatus(`Found ${count} files`, 'success');
+
+        } catch (err) {
+            showStatus('Failed to read ZIP file', 'error');
+        }
     };
+
     reader.readAsArrayBuffer(file);
 }
 
+
 // =====================
-// חיפוש עם הדגשה
+// חיפוש מילה – מופע הבא עם הדגשה
 // =====================
+
 function findNextWord() {
     const word = document.getElementById('searchWord').value;
-    if (!word || !originalText) return;
 
+    if (!word || !originalText) {
+        showStatus('No text or search word', 'error');
+        return;
+    }
+
+    // אם המילה השתנתה – מאפסים חיפוש
     if (word !== lastSearchWord) {
         searchIndex = 0;
         lastSearchWord = word;
     }
 
+    // חיפוש מהמיקום הנוכחי
     const idx = originalText.indexOf(word, searchIndex);
     if (idx === -1) {
         showStatus('No more matches', 'info');
         return;
     }
 
+    // עדכון מיקום החיפוש הבא
     searchIndex = idx + word.length;
 
+    // בניית HTML עם הדגשה
     document.getElementById('output').innerHTML =
         escapeHtml(originalText.substring(0, idx)) +
         '<mark>' + escapeHtml(word) + '</mark>' +
         escapeHtml(originalText.substring(idx + word.length));
 
-    document.querySelector('mark').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // גלילה אוטומטית למילה שנמצאה
+    const mark = document.querySelector('mark');
+    if (mark) {
+        mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    showStatus('Match found', 'success');
 }
 
+
 // =====================
-// טווח טקסט
+// סינון לפי טווח טקסט
 // =====================
+
 function filterByTextRange() {
     const from = document.getElementById('fromText').value;
     const to = document.getElementById('toText').value;
+
+    if (!from || !to) {
+        showStatus('Please enter start and end text', 'error');
+        return;
+    }
 
     const start = originalText.indexOf(from);
     const end = originalText.indexOf(to, start + from.length);
@@ -104,37 +186,75 @@ function filterByTextRange() {
     }
 
     setOutputText(originalText.substring(start, end + to.length));
+    showStatus('Text range applied', 'success');
 }
 
+
 // =====================
-// טווח תאריכים
+// סינון לפי טווח תאריכים
 // =====================
+
 function filterByDateRange() {
-    const from = new Date(document.getElementById('fromDate').value);
-    const to = new Date(document.getElementById('toDate').value);
+    const fromInput = document.getElementById('fromDate').value;
+    const toInput = document.getElementById('toDate').value;
 
-    const lines = originalText.split('\n').filter(line => {
-        const m = line.match(/(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{4}|\d{4}-\d{1,2}-\d{1,2})/);
-        if (!m) return false;
-        const d = new Date(m[0].replace(/(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/, '$3-$2-$1'));
-        return d >= from && d <= to;
-    });
+    if (!fromInput || !toInput) {
+        showStatus('Please select date range', 'error');
+        return;
+    }
 
-    setOutputText(lines.join('\n'));
+    const fromDate = new Date(fromInput);
+    const toDate = new Date(toInput);
+
+    const lines = originalText.split('\n');
+    const result = [];
+
+    for (let line of lines) {
+        // חיפוש תאריך בתוך השורה
+        const match = line.match(/(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{4}|\d{4}-\d{1,2}-\d{1,2})/);
+        if (!match) continue;
+
+        // פירוק תאריך בצורה יציבה
+        const parsedDate = parseDateFromText(match[0]);
+        if (!parsedDate) continue;
+
+        // בדיקה אם בטווח
+        if (parsedDate >= fromDate && parsedDate <= toDate) {
+            result.push(line);
+        }
+    }
+
+    if (result.length === 0) {
+        setOutputText('');
+        showStatus('No lines found in date range', 'info');
+        return;
+    }
+
+    setOutputText(result.join('\n'));
+    showStatus('Date range applied', 'success');
 }
 
+
 // =====================
-// כללי
+// פעולות כלליות
 // =====================
+
 function resetText() {
+    // החזרת הטקסט המקורי
     setOutputText(originalText);
+    searchIndex = 0;
+    lastSearchWord = '';
+    showStatus('Text reset', 'info');
 }
 
 function clearOutput() {
+    // ניקוי אזור הפלט
     setOutputText('');
+    showStatus('Output cleared', 'info');
 }
 
 function copyToClipboard() {
+    // העתקת הטקסט ללוח
     navigator.clipboard.writeText(getOutputText());
     showStatus('Copied', 'success');
 }
