@@ -48,21 +48,23 @@ function escapeHtml(text) {
 // =====================
 
 function parseDateFromText(dateText) {
+    let year, month, day;
+
     // פורמט: YYYY-MM-DD
     if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(dateText)) {
-        const [y, m, d] = dateText.split('-').map(Number);
-        return new Date(y, m - 1, d); // חודשים ב-JS מתחילים מ-0
+        [year, month, day] = dateText.split('-').map(Number);
+    } else {
+        // DD.MM.YYYY / DD/MM/YYYY / DD-MM-YYYY
+        const match = dateText.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+        if (!match) return null;
+
+        day = parseInt(match[1], 10);
+        month = parseInt(match[2], 10);
+        year = parseInt(match[3], 10);
     }
 
-    // פורמטים: DD.MM.YYYY / DD/MM/YYYY / DD-MM-YYYY
-    const match = dateText.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
-    if (!match) return null;
-
-    const day = parseInt(match[1], 10);
-    const month = parseInt(match[2], 10);
-    const year = parseInt(match[3], 10);
-
-    return new Date(year, month - 1, day);
+    // יצירת תאריך עם שעה בטוחה (12:00) כדי למנוע בעיות timezone
+    return new Date(year, month - 1, day, 12, 0, 0);
 }
 
 
@@ -203,8 +205,12 @@ function filterByDateRange() {
         return;
     }
 
+    // נורמליזציה: התחלה 00:00, סיום 23:59:59
     const fromDate = new Date(fromInput);
+    fromDate.setHours(0, 0, 0, 0);
+
     const toDate = new Date(toInput);
+    toDate.setHours(23, 59, 59, 999);
 
     const lines = originalText.split('\n');
     const result = [];
@@ -214,11 +220,9 @@ function filterByDateRange() {
         const match = line.match(/(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{4}|\d{4}-\d{1,2}-\d{1,2})/);
         if (!match) continue;
 
-        // פירוק תאריך בצורה יציבה
         const parsedDate = parseDateFromText(match[0]);
         if (!parsedDate) continue;
 
-        // בדיקה אם בטווח
         if (parsedDate >= fromDate && parsedDate <= toDate) {
             result.push(line);
         }
