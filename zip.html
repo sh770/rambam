@@ -36,9 +36,8 @@
         .sum-row { background: #fff9c4; font-weight: bold; }
         
         #status { text-align: center; font-size: 0.85em; margin: 8px 0; color: var(--accent); font-weight: bold; }
-        .nav-section { margin-top: 20px; border-top: 1px solid #ddd; padding-top: 15px; }
+        .nav-section { margin-top: 20px; border-top: 1px solid #ddd; padding-top: 15px; display: none; }
         
-        /* כפתורים מוסתרים כברירת מחדל */
         #clearBtn, #copyBtn { display: none; }
     </style>
 </head>
@@ -54,7 +53,7 @@
 
     <div id="instructions" class="instruction-box">
         <strong>הקובץ נקלט!</strong><br>
-        בחר טווח תאריכים ולחץ על "בצע ניתוח". הנתונים יישמרו והממשק יינעל.
+        בחר טווח תאריכים ולחץ על "בצע ניתוח".
     </div>
 
     <div class="input-row">
@@ -64,8 +63,8 @@
     
     <button id="analyzeBtn" class="btn btn-green" onclick="runAnalysis()" disabled>🚀 2. בצע ניתוח ועדכון זיכרון</button>
 
-    <div class="nav-section">
-        <a href="lottery.html" class="btn btn-purple">🎯 עבר לדף ההגרלה</a>
+    <div id="navSection" class="nav-section">
+        <a href="lottery.html" class="btn btn-purple">🎯 עבור לדף ההגרלה</a>
     </div>
 </div>
 
@@ -121,6 +120,7 @@ function loadStoredData() {
     const data = localStorage.getItem("participants");
     const clearBtn = document.getElementById('clearBtn');
     const copyBtn = document.getElementById('copyBtn');
+    const navSection = document.getElementById('navSection');
 
     if (data) {
         const participants = JSON.parse(data);
@@ -128,12 +128,18 @@ function loadStoredData() {
             document.getElementById('summaryCard').style.display = 'block';
             clearBtn.style.display = 'block';
             copyBtn.style.display = 'block';
+            
+            // הצגת כפתור הגרלה רק אם יש לפחות כרטיס אחד למישהו
+            const hasTickets = participants.some(p => p.tickets > 0);
+            if (hasTickets) navSection.style.display = 'block';
+            
             renderSummaryOnly(participants);
             return;
         }
     }
     clearBtn.style.display = 'none';
     copyBtn.style.display = 'none';
+    navSection.style.display = 'none';
 }
 
 async function onFileSelected() {
@@ -239,6 +245,11 @@ function analyzeAndSave() {
     document.getElementById('detailCard').style.display = 'block';
     document.getElementById('clearBtn').style.display = 'block';
     document.getElementById('copyBtn').style.display = 'block';
+    
+    // בדיקה אם להציג את כפתור ההגרלה
+    if (updatedParticipants.some(p => p.tickets > 0)) {
+        document.getElementById('navSection').style.display = 'block';
+    }
 }
 
 function renderSummaryOnly(participants) {
