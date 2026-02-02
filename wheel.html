@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מערכת הגרלה</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+    <style>
+        :root { --primary: #1a237e; --gold: #c5a059; --bg: #f4f7f6; }
+        * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { background: var(--bg); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; color: #333; }
+        
+        .nav-bar { width: 100%; max-width: 1100px; display: flex; justify-content: flex-start; margin-bottom: 10px; }
+        .btn-nav { background: #607d8b; color: white; padding: 8px 16px; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; font-size: 0.9rem; }
+
+        .main-layout { display: flex; gap: 40px; width: 100%; max-width: 1100px; flex-wrap: wrap; justify-content: center; }
+
+        .raffle-container { text-align: center; flex: 1; min-width: 350px; }
+        .raffle-box {
+            background: #fff; height: 300px; border: 2px solid #ddd; border-radius: 20px;
+            display: flex; align-items: center; justify-content: center;
+            position: relative; overflow: hidden; box-shadow: 0 15px 35px rgba(0,0,0,0.1); margin-bottom: 25px;
+        }
+
+        #current-name { font-size: 2.5rem; font-weight: 800; color: var(--primary); text-align: center; padding: 0 20px; }
+
+        .winners-panel { background: #fff; width: 320px; max-height: 500px; border-radius: 20px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); display: flex; flex-direction: column; }
+        .winners-panel h2 { color: var(--primary); font-size: 1.4rem; margin: 0 0 15px 0; border-bottom: 2px solid var(--bg); padding-bottom: 10px; }
+        #winnersList { overflow-y: auto; flex-grow: 1; }
+        .winner-item { padding: 12px; border-bottom: 1px solid #eee; font-weight: 600; display: flex; justify-content: space-between; animation: popIn 0.4s ease; }
+        @keyframes popIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+
+        .btn-draw { background: var(--primary); color: white; padding: 18px 60px; border: none; border-radius: 12px; font-size: 1.4rem; font-weight: bold; cursor: pointer; transition: 0.3s; width: 100%; }
+        .btn-draw:hover:not(:disabled) { background: #0d144d; transform: translateY(-3px); }
+        .btn-draw:disabled { background: #bdc3c7; }
+
+        .stats-info { margin-top: 15px; font-size: 0.95rem; color: #7f8c8d; }
+    </style>
+</head>
+<body>
+
+    <div class="nav-bar">
+        <button class="btn-nav" onclick="finishAndGoBack()">🔙 חזרה לעמוד הראשי ואיפוס כרטיסים</button>
+    </div>
+
+    <h1 style="font-weight: 900; color: var(--primary);">מערכת הגרלת המשתתפים</h1>
+
+    <div class="main-layout">
+        <div class="raffle-container">
+            <div class="raffle-box">
+                <div id="current-name">מוכנים?</div>
+            </div>
+            <button class="btn-draw" id="drawBtn" onclick="drawWinner()">הגרל כרטיס!</button>
+            <div class="stats-info">כרטיסים בתיבה: <strong id="count">0</strong></div>
+        </div>
+
+        <div class="winners-panel">
+            <h2>🏆 רשימת זוכים</h2>
+            <div id="winnersList"></div>
+        </div>
+    </div>
+
+    <audio id="winSound" src="crowd_cheer.ogg"></audio>
+
+<script>
+    let ticketsPool = [];
+    let isDrawing = false;
+    let winnerCount = 0;
+
+    window.onload = () => {
+        const stored = localStorage.getItem("participants");
+        if (stored) {
+            const data = JSON.parse(stored);
+            data.forEach(p => {
+                for(let i=0; i<p.tickets; i++) {
+                    ticketsPool.push(p.name);
+                }
+            });
+            updateStats();
+        }
+    };
+
+    function updateStats() {
+        document.getElementById('count').textContent = ticketsPool.length;
+    }
+
+    function getSecureRandomIndex(max) {
+        const array = new Uint32Array(1);
+        window.crypto.getRandomValues(array);
+        return array[0] % max;
+    }
+
+    function drawWinner() {
+        if (isDrawing || ticketsPool.length === 0) return;
+        isDrawing = true;
+        document.getElementById('drawBtn').disabled = true;
+        const display = document.getElementById('current-name');
+        
+        const duration = 3000; 
+        const shuffleInterval = setInterval(() => {
+            display.textContent = ticketsPool[getSecureRandomIndex(ticketsPool.length)];
+        }, 70);
+
+        setTimeout(() => {
+            clearInterval(shuffleInterval);
+            const finalIndex = getSecureRandomIndex(ticketsPool.length);
+            const winnerName = ticketsPool[finalIndex];
+            
+            display.textContent = winnerName;
+            display.style.color = "#d4af37";
+            
+            // צליל וקונפטי
+            document.getElementById('winSound').play().catch(e => console.log("Sound error:", e));
+            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+
+            winnerCount++;
+            const list = document.getElementById('winnersList');
+            const div = document.createElement('div');
+            div.className = 'winner-item';
+            div.innerHTML = `<span>${winnerCount}. ${winnerName}</span>`;
+            list.prepend(div);
+
+            ticketsPool.splice(finalIndex, 1);
+            updateStats();
+            isDrawing = false;
+            document.getElementById('drawBtn').disabled = false;
+        }, duration);
+    }
+
+    // פונקציית הסיום והחזרה
+    function finishAndGoBack() {
+        if (confirm("האם לסיים את ההגרלה? כל הכרטיסים יאופסו, אך שארית הניקוד תישמר לסבב הבא.")) {
+            const stored = localStorage.getItem("participants");
+            if (stored) {
+                const data = JSON.parse(stored);
+                // מאפסים כרטיסים ל-0, שומרים רק שם ושארית
+                const resetData = data.map(p => ({
+                    name: p.name,
+                    tickets: 0,
+                    remainder: p.remainder
+                }));
+                localStorage.setItem("participants", JSON.stringify(resetData));
+            }
+            window.location.href = 'index.html'; // שנה לשם הדף הראשי שלך
+        }
+    }
+</script>
+</body>
+</html>
