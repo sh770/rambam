@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>מערכת הגרלה - עם שמירה בזיכרון</title>
+    <title>ניהול הגרלה - לוח בקרה</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
-        :root { --primary: #1a237e; --bg: #f5f7f9; }
+        :root { --primary: #1a237e; --bg: #f5f7f9; --accent: #2e7d32; }
         * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
         body { background: var(--bg); padding: 5px; direction: rtl; margin: 0; }
         .card { background: white; padding: 12px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 15px; }
         h1, h2 { text-align: center; color: var(--primary); margin-bottom: 12px; font-size: 1.3rem; }
         .btn { width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; color: white; margin-top: 8px; }
         .btn-blue { background: #3949ab; }
-        .btn-green { background: #2e7d32; }
+        .btn-green { background: var(--accent); }
         .btn-red { background: #c62828; margin-top: 20px; font-size: 0.8em; opacity: 0.8; }
         .btn:disabled { background: #ccc; }
         .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
@@ -30,34 +30,38 @@
         .bg-pts { background: #c8e6c9; color: #1b5e20; }
         .bg-tix { background: #ffe0b2; color: #e65100; }
         #status { text-align: center; font-size: 0.85em; margin: 8px 0; color: #e65100; min-height: 1.2em; }
+        .stored-title { background: #e3f2fd; color: #0d47a1; padding: 5px; border-radius: 5px; font-size: 0.9em; text-align: center; margin-bottom: 10px; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div class="card">
     <h1>🎟️ ניהול הגרלה צבור</h1>
+    
     <input type="file" id="zipFile" onchange="onFileSelected()" style="display: none;">
     <label for="zipFile" class="btn btn-blue" style="display: block; text-align: center;">📂 טען קובץ ZIP חדש</label>
-    <button id="extractBtn" class="btn btn-blue" onclick="extractData()" disabled>📥 שלב 1: חלץ</button>
     
-    <div id="status">ממתין לקובץ...</div>
+    <button id="extractBtn" class="btn btn-blue" onclick="extractData()" disabled>📥 שלב 1: חלץ נתונים</button>
+    
+    <div id="status">ממתין לפעולה...</div>
 
     <div class="input-row">
         <div><label>מיום:</label><input type="date" id="fromDate"></div>
         <div><label>עד יום:</label><input type="date" id="toDate"></div>
     </div>
-    <button id="analyzeBtn" class="btn btn-green" onclick="run()" disabled>🚀 שלב 2: עדכן זיכרון והפק דוח</button>
+    <button id="analyzeBtn" class="btn btn-green" onclick="run()" disabled>🚀 שלב 2: עדכן והפק דוח</button>
 </div>
 
-<div id="outputArea" style="display:none;">
-    <div class="card">
-        <h2>📊 סיכום מצטבר (מכל הסבבים)</h2>
+<div id="outputArea">
+    <div class="card" id="summaryCard" style="display:none;">
+        <div id="storedIndicator" class="stored-title" style="display:none;">📊 נתונים טעונים מהזיכרון</div>
+        <h2>📋 סיכום הגרלה מצטבר</h2>
         <div class="table-wrap">
             <table id="summaryTable">
                 <thead>
                     <tr>
                         <th class="col-name">שם</th>
-                        <th style="width:18%">נק'</th>
+                        <th style="width:18%">נק' סבב</th>
                         <th style="width:24%">כרטיסים</th>
                         <th style="width:18%">שאר</th>
                     </tr>
@@ -68,8 +72,8 @@
         <button class="btn btn-blue" onclick="copyTable('summaryTable')">📋 העתק טבלה</button>
     </div>
 
-    <div class="card">
-        <h2>📝 פירוט סבב נוכחי</h2>
+    <div class="card" id="detailCard" style="display:none;">
+        <h2>📝 פירוט מהקובץ האחרון</h2>
         <div class="table-wrap">
             <table id="detailTable">
                 <thead>
@@ -84,12 +88,28 @@
         </div>
     </div>
 
-    <button class="btn btn-red" onclick="clearMemory()">⚠️ אפס את כל הנתונים בזיכרון</button>
+    <button id="clearBtn" class="btn btn-red" onclick="clearMemory()" style="display:none;">⚠️ אפס את כל הנתונים בזיכרון</button>
 </div>
 
 <script>
 let currentFileMessages = [];
 const TICKET_THRESHOLD = 7;
+
+// הרצה בטעינת הדף
+window.addEventListener('DOMContentLoaded', loadStoredData);
+
+function loadStoredData() {
+    const data = localStorage.getItem("participants");
+    if (data) {
+        const participants = JSON.parse(data);
+        if (participants.length > 0) {
+            document.getElementById('summaryCard').style.display = 'block';
+            document.getElementById('storedIndicator').style.display = 'block';
+            document.getElementById('clearBtn').style.display = 'block';
+            renderSummaryOnly(participants);
+        }
+    }
+}
 
 function onFileSelected() {
     document.getElementById('extractBtn').disabled = false;
@@ -102,12 +122,11 @@ async function extractData() {
     try {
         const zip = await JSZip.loadAsync(file);
         let text = '';
-        for (let name in zip.files) {
-            if (name.endsWith('.txt')) text += await zip.files[name].async('string') + '\n';
-        }
+        const files = Object.keys(zip.files).filter(name => name.endsWith('.txt'));
+        for (let name of files) { text += await zip.files[name].async('string') + '\n'; }
         currentFileMessages = parse(text);
         document.getElementById('analyzeBtn').disabled = false;
-        document.getElementById('status').textContent = `זוהו ${currentFileMessages.length} הודעות ניקוד.`;
+        document.getElementById('status').textContent = `זוהו ${currentFileMessages.length} הודעות. לחץ על עדכן.`;
     } catch (e) { document.getElementById('status').textContent = 'שגיאה בחילוץ.'; }
 }
 
@@ -139,9 +158,10 @@ function run() {
     btn.textContent = 'מעבד ושומר...';
     setTimeout(() => {
         analyzeAndSave();
-        document.getElementById('outputArea').style.display = 'block';
-        btn.textContent = '🚀 עדכון בוצע!';
-        btn.disabled = false;
+        document.getElementById('detailCard').style.display = 'block';
+        document.getElementById('clearBtn').style.display = 'block';
+        document.getElementById('storedIndicator').style.display = 'none'; // מבטל את הציון שזה רק מהזיכרון כי עכשיו זה מעודכן
+        btn.textContent = '🚀 הנתונים עודכנו!';
     }, 50);
 }
 
@@ -151,7 +171,6 @@ function analyzeAndSave() {
     const from = fromVal ? new Date(fromVal) : null;
     const to = toVal ? new Date(toVal) : null;
 
-    // 1. סינון הודעות מהקובץ הנוכחי
     const currentResults = {};
     const filtered = currentFileMessages.filter(m => {
         if (from && m.dateObj < from) return false;
@@ -165,7 +184,6 @@ function analyzeAndSave() {
         currentResults[m.sender].msgs.push(m);
     });
 
-    // 2. טעינת נתונים קודמים מה-LocalStorage
     let stored = [];
     try {
         const data = localStorage.getItem("participants");
@@ -175,7 +193,6 @@ function analyzeAndSave() {
     const previousMap = {};
     stored.forEach(p => previousMap[p.name] = p);
 
-    // 3. איחוד וחישוב מחדש
     const allNames = new Set([...Object.keys(currentResults), ...Object.keys(previousMap)]);
     
     const updatedParticipants = Array.from(allNames).map(name => {
@@ -190,19 +207,29 @@ function analyzeAndSave() {
             name: name,
             tickets: prev.tickets + newTickets,
             remainder: remainder,
-            currentCyclePts: cur.pts // לצרכי תצוגה בלבד
+            currentCyclePts: cur.pts
         };
     });
 
-    // 4. שמירה חזרה ל-LocalStorage
     localStorage.setItem("participants", JSON.stringify(updatedParticipants));
-
-    // 5. רינדור טבלאות
-    renderTables(updatedParticipants, currentResults);
+    renderAll(updatedParticipants, currentResults);
 }
 
-function renderTables(participants, currentResults) {
-    // טבלת סיכום
+function renderSummaryOnly(participants) {
+    let sHtml = '';
+    participants.sort((a,b) => b.tickets - a.tickets || b.remainder - a.remainder).forEach(p => {
+        sHtml += `<tr>
+            <td class="col-name"><strong>${p.name}</strong></td>
+            <td>-</td>
+            <td><span class="badge bg-tix">${p.tickets}</span></td>
+            <td>${p.remainder}</td>
+        </tr>`;
+    });
+    document.getElementById('summaryBody').innerHTML = sHtml;
+}
+
+function renderAll(participants, currentResults) {
+    // עדכון סיכום
     let sHtml = '';
     participants.sort((a,b) => b.tickets - a.tickets || b.remainder - a.remainder).forEach(p => {
         sHtml += `<tr>
@@ -213,8 +240,9 @@ function renderTables(participants, currentResults) {
         </tr>`;
     });
     document.getElementById('summaryBody').innerHTML = sHtml;
+    document.getElementById('summaryCard').style.display = 'block';
 
-    // טבלת פירוט (סבב נוכחי בלבד)
+    // עדכון פירוט
     let dHtml = '';
     Object.entries(currentResults).sort((a,b) => b[1].pts - a[1].pts).forEach(([name, data]) => {
         dHtml += `<tr class="user-row"><td colspan="3">👤 ${name}</td></tr>`;
@@ -227,7 +255,7 @@ function renderTables(participants, currentResults) {
 }
 
 function clearMemory() {
-    if (confirm("האם אתה בטוח שברצונך למחוק את כל הסטוריית הכרטיסים והנקודות?")) {
+    if (confirm("⚠️ זה ימחק את כל היסטוריית הכרטיסים. האם להמשיך?")) {
         localStorage.removeItem("participants");
         location.reload();
     }
@@ -240,7 +268,7 @@ function copyTable(id) {
     window.getSelection().removeAllRanges();
     window.getSelection().addRange(range);
     document.execCommand('copy');
-    alert('הטבלה הועתקה ללוח!');
+    alert('הטבלה הועתקה!');
 }
 </script>
 </body>
