@@ -3,63 +3,90 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>מערכת הגרלה</title>
+    <title>הגרלת כרטיסים</title>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
     <style>
-        :root { --primary: #1a237e; --gold: #c5a059; --bg: #f4f7f6; --accent: #3949ab; }
+        :root { --primary: #1a237e; --gold: #c5a059; --bg: #f4f7f6; --accent: #3949ab; --error: #c62828; }
         * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
-        body { background: var(--bg); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; color: #333; }
+        body { background: var(--bg); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; color: #333; }
         
-        .main-layout { display: flex; gap: 40px; width: 100%; max-width: 1100px; flex-wrap: wrap; justify-content: center; margin-top: 40px; }
-
-        .raffle-container { text-align: center; flex: 1; min-width: 350px; }
+        .raffle-container { text-align: center; width: 100%; max-width: 500px; }
+        
         .raffle-box {
-            background: #fff; height: 320px; border: 2px solid #ddd; border-radius: 20px;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            position: relative; overflow: hidden; box-shadow: 0 15px 35px rgba(0,0,0,0.1); margin-bottom: 25px;
+            background: #fff; 
+            min-height: 350px; 
+            border: 2px solid #ddd; 
+            border-radius: 20px;
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: space-between;
+            position: relative; 
+            overflow: hidden; 
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1); 
+            padding: 40px 20px;
+            margin-bottom: 25px;
         }
 
-        #current-name { font-size: 2.8rem; font-weight: 800; color: var(--primary); text-align: center; padding: 0 20px; margin-bottom: 20px; }
+        #current-name { 
+            font-size: 3rem; 
+            font-weight: 800; 
+            color: var(--primary); 
+            text-align: center;
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
 
-        .winners-panel { background: #fff; width: 320px; max-height: 500px; border-radius: 20px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); display: flex; flex-direction: column; }
-        .winners-panel h2 { color: var(--primary); font-size: 1.4rem; margin: 0 0 15px 0; border-bottom: 2px solid var(--bg); padding-bottom: 10px; }
-        #winnersList { overflow-y: auto; flex-grow: 1; }
-        .winner-item { padding: 12px; border-bottom: 1px solid #eee; font-weight: 600; animation: popIn 0.4s ease; }
-        
-        @keyframes popIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+        .winner-pulse { animation: pulse 1.5s infinite; color: var(--gold) !important; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
 
         .btn { padding: 18px 60px; border: none; border-radius: 12px; font-size: 1.4rem; font-weight: bold; cursor: pointer; transition: 0.3s; width: 100%; }
         .btn-draw { background: var(--primary); color: white; }
         .btn-draw:hover:not(:disabled) { background: #0d144d; transform: translateY(-3px); }
         .btn-draw:disabled { background: #bdc3c7; opacity: 0.7; }
 
-        .btn-back { background: var(--accent); color: white; margin-top: 10px; display: none; text-decoration: none; text-align: center; }
-        .btn-back:hover { background: #283593; }
+        .btn-back { 
+            background: var(--accent); 
+            color: white; 
+            display: none; 
+            text-decoration: none; 
+            text-align: center;
+            font-size: 1.1rem;
+            padding: 12px 30px;
+            width: auto;
+            margin-top: 20px;
+        }
 
-        .stats-info { margin-top: 15px; font-size: 0.95rem; color: #7f8c8d; }
+        .stats-info { margin-top: 15px; font-size: 1rem; color: #7f8c8d; font-weight: 600; }
+
+        /* הודעת שגיאה */
+        #error-msg { color: var(--error); font-size: 1.2rem; display: none; flex-direction: column; gap: 10px; }
+        #countdown { font-size: 2rem; font-weight: 900; }
     </style>
 </head>
 <body>
 
-    <h1 style="font-weight: 900; color: var(--primary); margin-bottom: 0;">הגרלת כרטיסים</h1>
+    <h1 id="page-title" style="font-weight: 900; color: var(--primary); margin-bottom: 30px;">הגרלת המשתתפים</h1>
 
-    <div class="main-layout">
-        <div class="raffle-container">
-            <div class="raffle-box">
-                <div id="current-name">מוכנים?</div>
-                <button id="backBtn" class="btn btn-back" onclick="goToMain()">🔙 חזרה לדף הראשי </button>
-            </div>
+    <div class="raffle-container">
+        <div class="raffle-box" id="mainBox">
+            <div id="current-name">מוכנים?</div>
             
-            <button class="btn btn-draw" id="drawBtn" onclick="drawWinner()">הגרל כרטיס!</button>
-            
-            <div class="stats-info" id="statsWrapper">
-                כרטיסים בתיבה: <strong id="count">0</strong>
+            <div id="error-msg">
+                <span>לא נמצאו כרטיסים להגרלה בזיכרון.</span>
+                <span>חוזר לדף הראשי בעוד:</span>
+                <span id="countdown">5</span>
             </div>
+
+            <button id="backBtn" class="btn btn-back" onclick="goToMain()">🔙 חזרה לדף הראשי</button>
         </div>
-
-        <div class="winners-panel">
-            <h2>🏆 הזוכה הוא </h2>
-            <div id="winnersList"></div>
+        
+        <button class="btn btn-draw" id="drawBtn" onclick="drawWinner()">הגרל כרטיס!</button>
+        
+        <div class="stats-info" id="statsWrapper">
+            כרטיסים בתיבה: <strong id="count">0</strong>
         </div>
     </div>
 
@@ -70,7 +97,11 @@
     let isDrawing = false;
 
     window.onload = () => {
-        loadPool();
+        const hasTickets = loadPool();
+        
+        if (!hasTickets) {
+            startRedirectSequence();
+        }
     };
 
     function loadPool() {
@@ -84,7 +115,33 @@
                 }
             });
             document.getElementById('count').textContent = ticketsPool.length;
+            return ticketsPool.length > 0;
         }
+        return false;
+    }
+
+    function startRedirectSequence() {
+        // הסתרת אלמנטים של הגרלה
+        document.getElementById('current-name').style.display = 'none';
+        document.getElementById('drawBtn').style.display = 'none';
+        document.getElementById('statsWrapper').style.display = 'none';
+        document.getElementById('page-title').textContent = 'שגיאה';
+        
+        // הצגת הודעת שגיאה וספירה לאחור
+        const errorDiv = document.getElementById('error-msg');
+        errorDiv.style.display = 'flex';
+        
+        let seconds = 5;
+        const countdownEl = document.getElementById('countdown');
+        
+        const timer = setInterval(() => {
+            seconds--;
+            countdownEl.textContent = seconds;
+            if (seconds <= 0) {
+                clearInterval(timer);
+                goToMain();
+            }
+        }, 1000);
     }
 
     function getSecureRandomIndex(max) {
@@ -99,6 +156,7 @@
         isDrawing = true;
         document.getElementById('drawBtn').disabled = true;
         const display = document.getElementById('current-name');
+        display.classList.remove('winner-pulse');
         
         const duration = 3000; 
         const shuffleInterval = setInterval(() => {
@@ -111,20 +169,13 @@
             const winnerName = ticketsPool[finalIndex];
             
             display.textContent = winnerName;
-            display.style.color = "#d4af37";
+            display.classList.add('winner-pulse');
             
-            // צליל וקונפטי
-            document.getElementById('winSound').play().catch(e => console.log("Sound check: Audio file missing or interaction blocked."));
+            document.getElementById('winSound').play().catch(() => {});
             confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
 
-            // הוספה לרשימת זוכה
-            const list = document.getElementById('winnersList');
-            list.innerHTML = `<div class="winner-item">⭐ ${winnerName}</div>`;
-
-            // עדכון הזיכרון: מחיקת כל הכרטיסים ושמירת השאריות בלבד
             clearTicketsFromMemory();
 
-            // עדכון הממשק לסיום
             document.getElementById('drawBtn').style.display = 'none';
             document.getElementById('statsWrapper').style.visibility = 'hidden';
             document.getElementById('backBtn').style.display = 'block';
@@ -139,8 +190,8 @@
             const data = JSON.parse(stored);
             const resetData = data.map(p => ({
                 name: p.name,
-                tickets: 0, // איפוס כרטיסים
-                remainder: p.remainder // שמירת שאריות
+                tickets: 0,
+                remainder: p.remainder
             }));
             localStorage.setItem("participants", JSON.stringify(resetData));
         }
