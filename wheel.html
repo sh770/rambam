@@ -6,56 +6,59 @@
     <title>מערכת הגרלה</title>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
     <style>
-        :root { --primary: #1a237e; --gold: #c5a059; --bg: #f4f7f6; }
+        :root { --primary: #1a237e; --gold: #c5a059; --bg: #f4f7f6; --accent: #3949ab; }
         * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
         body { background: var(--bg); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; color: #333; }
         
-        .nav-bar { width: 100%; max-width: 1100px; display: flex; justify-content: flex-start; margin-bottom: 10px; }
-        .btn-nav { background: #607d8b; color: white; padding: 8px 16px; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; font-size: 0.9rem; }
-
-        .main-layout { display: flex; gap: 40px; width: 100%; max-width: 1100px; flex-wrap: wrap; justify-content: center; }
+        .main-layout { display: flex; gap: 40px; width: 100%; max-width: 1100px; flex-wrap: wrap; justify-content: center; margin-top: 40px; }
 
         .raffle-container { text-align: center; flex: 1; min-width: 350px; }
         .raffle-box {
-            background: #fff; height: 300px; border: 2px solid #ddd; border-radius: 20px;
-            display: flex; align-items: center; justify-content: center;
+            background: #fff; height: 320px; border: 2px solid #ddd; border-radius: 20px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
             position: relative; overflow: hidden; box-shadow: 0 15px 35px rgba(0,0,0,0.1); margin-bottom: 25px;
         }
 
-        #current-name { font-size: 2.5rem; font-weight: 800; color: var(--primary); text-align: center; padding: 0 20px; }
+        #current-name { font-size: 2.8rem; font-weight: 800; color: var(--primary); text-align: center; padding: 0 20px; margin-bottom: 20px; }
 
         .winners-panel { background: #fff; width: 320px; max-height: 500px; border-radius: 20px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); display: flex; flex-direction: column; }
         .winners-panel h2 { color: var(--primary); font-size: 1.4rem; margin: 0 0 15px 0; border-bottom: 2px solid var(--bg); padding-bottom: 10px; }
         #winnersList { overflow-y: auto; flex-grow: 1; }
-        .winner-item { padding: 12px; border-bottom: 1px solid #eee; font-weight: 600; display: flex; justify-content: space-between; animation: popIn 0.4s ease; }
+        .winner-item { padding: 12px; border-bottom: 1px solid #eee; font-weight: 600; animation: popIn 0.4s ease; }
+        
         @keyframes popIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
 
-        .btn-draw { background: var(--primary); color: white; padding: 18px 60px; border: none; border-radius: 12px; font-size: 1.4rem; font-weight: bold; cursor: pointer; transition: 0.3s; width: 100%; }
+        .btn { padding: 18px 60px; border: none; border-radius: 12px; font-size: 1.4rem; font-weight: bold; cursor: pointer; transition: 0.3s; width: 100%; }
+        .btn-draw { background: var(--primary); color: white; }
         .btn-draw:hover:not(:disabled) { background: #0d144d; transform: translateY(-3px); }
-        .btn-draw:disabled { background: #bdc3c7; }
+        .btn-draw:disabled { background: #bdc3c7; opacity: 0.7; }
+
+        .btn-back { background: var(--accent); color: white; margin-top: 10px; display: none; text-decoration: none; text-align: center; }
+        .btn-back:hover { background: #283593; }
 
         .stats-info { margin-top: 15px; font-size: 0.95rem; color: #7f8c8d; }
     </style>
 </head>
 <body>
 
-    <div class="nav-bar">
-        <button class="btn-nav" onclick="finishAndGoBack()">🔙 חזרה לעמוד הראשי ואיפוס כרטיסים</button>
-    </div>
-
-    <h1 style="font-weight: 900; color: var(--primary);">מערכת הגרלת המשתתפים</h1>
+    <h1 style="font-weight: 900; color: var(--primary); margin-bottom: 0;">הגרלת כרטיסים</h1>
 
     <div class="main-layout">
         <div class="raffle-container">
             <div class="raffle-box">
                 <div id="current-name">מוכנים?</div>
+                <button id="backBtn" class="btn btn-back" onclick="goToMain()">🔙 חזרה לנתונים</button>
             </div>
-            <button class="btn-draw" id="drawBtn" onclick="drawWinner()">הגרל כרטיס!</button>
-            <div class="stats-info">כרטיסים בתיבה: <strong id="count">0</strong></div>
+            
+            <button class="btn btn-draw" id="drawBtn" onclick="drawWinner()">הגרל כרטיס!</button>
+            
+            <div class="stats-info" id="statsWrapper">
+                כרטיסים בתיבה: <strong id="count">0</strong>
+            </div>
         </div>
 
         <div class="winners-panel">
-            <h2>🏆 רשימת זוכים</h2>
+            <h2>🏆 זוכה אחרון</h2>
             <div id="winnersList"></div>
         </div>
     </div>
@@ -65,23 +68,23 @@
 <script>
     let ticketsPool = [];
     let isDrawing = false;
-    let winnerCount = 0;
 
     window.onload = () => {
+        loadPool();
+    };
+
+    function loadPool() {
         const stored = localStorage.getItem("participants");
         if (stored) {
             const data = JSON.parse(stored);
+            ticketsPool = [];
             data.forEach(p => {
                 for(let i=0; i<p.tickets; i++) {
                     ticketsPool.push(p.name);
                 }
             });
-            updateStats();
+            document.getElementById('count').textContent = ticketsPool.length;
         }
-    };
-
-    function updateStats() {
-        document.getElementById('count').textContent = ticketsPool.length;
     }
 
     function getSecureRandomIndex(max) {
@@ -92,6 +95,7 @@
 
     function drawWinner() {
         if (isDrawing || ticketsPool.length === 0) return;
+        
         isDrawing = true;
         document.getElementById('drawBtn').disabled = true;
         const display = document.getElementById('current-name');
@@ -110,39 +114,40 @@
             display.style.color = "#d4af37";
             
             // צליל וקונפטי
-            document.getElementById('winSound').play().catch(e => console.log("Sound error:", e));
+            document.getElementById('winSound').play().catch(e => console.log("Sound check: Audio file missing or interaction blocked."));
             confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
 
-            winnerCount++;
+            // הוספה לרשימת זוכה
             const list = document.getElementById('winnersList');
-            const div = document.createElement('div');
-            div.className = 'winner-item';
-            div.innerHTML = `<span>${winnerCount}. ${winnerName}</span>`;
-            list.prepend(div);
+            list.innerHTML = `<div class="winner-item">⭐ ${winnerName}</div>`;
 
-            ticketsPool.splice(finalIndex, 1);
-            updateStats();
+            // עדכון הזיכרון: מחיקת כל הכרטיסים ושמירת השאריות בלבד
+            clearTicketsFromMemory();
+
+            // עדכון הממשק לסיום
+            document.getElementById('drawBtn').style.display = 'none';
+            document.getElementById('statsWrapper').style.visibility = 'hidden';
+            document.getElementById('backBtn').style.display = 'block';
+            
             isDrawing = false;
-            document.getElementById('drawBtn').disabled = false;
         }, duration);
     }
 
-    // פונקציית הסיום והחזרה
-    function finishAndGoBack() {
-        if (confirm("האם לסיים את ההגרלה? כל הכרטיסים יאופסו, אך שארית הניקוד תישמר לסבב הבא.")) {
-            const stored = localStorage.getItem("participants");
-            if (stored) {
-                const data = JSON.parse(stored);
-                // מאפסים כרטיסים ל-0, שומרים רק שם ושארית
-                const resetData = data.map(p => ({
-                    name: p.name,
-                    tickets: 0,
-                    remainder: p.remainder
-                }));
-                localStorage.setItem("participants", JSON.stringify(resetData));
-            }
-            window.location.href = 'index.html'; // שנה לשם הדף הראשי שלך
+    function clearTicketsFromMemory() {
+        const stored = localStorage.getItem("participants");
+        if (stored) {
+            const data = JSON.parse(stored);
+            const resetData = data.map(p => ({
+                name: p.name,
+                tickets: 0, // איפוס כרטיסים
+                remainder: p.remainder // שמירת שאריות
+            }));
+            localStorage.setItem("participants", JSON.stringify(resetData));
         }
+    }
+
+    function goToMain() {
+        window.location.href = 'index.html';
     }
 </script>
 </body>
