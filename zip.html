@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>מערכת הגרלה - מותאם למסך</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        :root { --primary: #1a237e; --bg: #f5f7f9; }
+        * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
+        
+        body { background: var(--bg); padding: 5px; direction: rtl; margin: 0; }
+        .card { background: white; padding: 12px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 15px; }
+        
+        h1, h2 { text-align: center; color: var(--primary); margin-bottom: 12px; font-size: 1.3rem; }
+        .btn { width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; color: white; margin-top: 8px; }
+        .btn-blue { background: #3949ab; }
+        .btn-green { background: #2e7d32; }
+        .btn:disabled { background: #ccc; }
+
+        .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
+        label { font-size: 0.85em; font-weight: bold; }
+        input[type="date"] { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px; font-size: 0.9em; }
+
+        /* טבלה מותאמת למסך ללא גלילה */
+        .table-wrap { width: 100%; border: 1px solid #eee; border-radius: 6px; overflow: hidden; }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; background: white; }
+        th, td { 
+            padding: 8px 4px; 
+            text-align: center; 
+            border-bottom: 1px solid #eee; 
+            font-size: 0.85em; 
+            word-wrap: break-word; /* שובר שמות ארוכים */
+        }
+        th { background: #f0f2f5; font-weight: bold; }
+        
+        /* הגדרת רוחב טורים לטבלת סיכום */
+        .col-name { width: 40%; text-align: right; padding-right: 8px; }
+        .col-pts { width: 18%; }
+        .col-tix { width: 24%; }
+        .col-rem { width: 18%; }
+
+        .user-row { background: #e8eaf6; font-weight: bold; color: var(--primary); text-align: right; }
+        .sum-row { background: #fff9c4; font-weight: bold; font-size: 0.9em; }
+        
+        .badge { padding: 2px 4px; border-radius: 4px; display: inline-block; }
+        .bg-pts { background: #c8e6c9; color: #1b5e20; }
+        .bg-tix { background: #ffe0b2; color: #e65100; }
+
+        #status { text-align: center; font-size: 0.85em; margin: 8px 0; color: #e65100; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>🎟️ ניהול הגרלה</h1>
+    <input type="file" id="zipFile" onchange="onFileSelected()" style="display: none;">
+    <label for="zipFile" class="btn btn-blue" style="display: block; text-align: center;">📂 טען קובץ</label>
+    <button id="extractBtn" class="btn btn-blue" onclick="extractData()" disabled>📥 שלב 1: חלץ</button>
+    
+    <div id="status">בחר קובץ ZIP...</div>
+
+    <div class="input-row">
+        <div><label>מיום:</label><input type="date" id="fromDate"></div>
+        <div><label>עד יום:</label><input type="date" id="toDate"></div>
+    </div>
+    <button id="analyzeBtn" class="btn btn-green" onclick="run()" disabled>🚀 שלב 2: הפק דוחות</button>
+</div>
+
+<div id="outputArea" style="display:none;">
+    <div class="card" style="padding: 8px;">
+        <h2>📊 סיכום הגרלה</h2>
+        <div class="table-wrap">
+            <table id="summaryTable">
+                <thead>
+                    <tr>
+                        <th class="col-name">שם</th>
+                        <th class="col-pts">נק'</th>
+                        <th class="col-tix">כרטיסים</th>
+                        <th class="col-rem">שאר</th>
+                    </tr>
+                </thead>
+                <tbody id="summaryBody"></tbody>
+            </table>
+        </div>
+        <button class="btn btn-blue" onclick="copyTable('summaryTable')">📋 העתק סיכום</button>
+    </div>
+
+    <div class="card" style="padding: 8px;">
+        <h2>📝 פירוט הודעות</h2>
+        <div class="table-wrap">
+            <table id="detailTable">
+                <thead>
+                    <tr>
+                        <th style="width: 20%;">תאריך</th>
+                        <th style="width: 65%; text-align: right;">הודעה</th>
+                        <th style="width: 15%;">נק'</th>
+                    </tr>
+                </thead>
+                <tbody id="detailBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+let rawMessages = [];
+
+function onFileSelected() {
+    document.getElementById('extractBtn').disabled = false;
+    document.getElementById('status').textContent = 'הקובץ נטען.';
+}
+
+async function extractData() {
+    const file = document.getElementById('zipFile').files[0];
+    try {
+        const zip = await JSZip.loadAsync(file);
+        let text = '';
+        const files = Object.keys(zip.files).filter(name => name.endsWith('.txt'));
+        for (let name of files) { text += await zip.files[name].async('string') + '\n'; }
+        rawMessages = parse(text);
+        document.getElementById('analyzeBtn').disabled = false;
+        document.getElementById('status').textContent = `זוהו ${rawMessages.length} הודעות.`;
+    } catch (e) { document.getElementById('status').textContent = 'שגיאה בחילוץ.'; }
+}
+
+function parse(text) {
+    const lines = text.split('\n');
+    const parsed = [];
+    const r1 = /^\[(\d{1,2})\.(\d{1,2}),\s*\d{1,2}:\d{2}\]\s*(.+?):\s*(.+)$/;
+    const r2 = /^(\d{1,2})\.(\d{1,2})\.\d{4},\s*\d{1,2}:\d{2}\s*-\s*(.+?):\s*(.+)$/;
+
+    for (let line of lines) {
+        let m = line.match(r1) || line.match(r2);
+        if (m) {
+            let content = m[m.length-1].trim();
+            let pts = content.includes('✅') ? 3 : content.includes('✔️') ? 2 : content.includes('♻️') ? 1 : 0;
+            if (pts > 0) {
+                parsed.push({
+                    date: `${m[1]}.${m[2]}`,
+                    dateObj: new Date(2026, m[2]-1, m[1]),
+                    sender: m[m.length-2].trim().replace(/\u200F|\u200E/g, ""),
+                    content: content,
+                    pts: pts
+                });
+            }
+        }
+    }
+    return parsed;
+}
+
+function run() {
+    const btn = document.getElementById('analyzeBtn');
+    btn.textContent = 'מעבד...';
+    setTimeout(() => {
+        analyze();
+        document.getElementById('outputArea').style.display = 'block';
+        btn.textContent = '🚀 שלב 2: הפק דוחות';
+    }, 50);
+}
+
+function analyze() {
+    const fromVal = document.getElementById('fromDate').value;
+    const toVal = document.getElementById('toDate').value;
+    const from = fromVal ? new Date(fromVal) : null;
+    const to = toVal ? new Date(toVal) : null;
+
+    let filtered = rawMessages.filter(m => {
+        if (from && m.dateObj < from) return false;
+        if (to && m.dateObj > to) return false;
+        return true;
+    });
+
+    const users = {};
+    filtered.forEach(m => {
+        if (!users[m.sender]) users[m.sender] = { msgs: [], total: 0 };
+        users[m.sender].msgs.push(m);
+        users[m.sender].total += m.pts;
+    });
+
+    const sortedUsers = Object.entries(users).sort((a,b) => b[1].total - a[1].total);
+
+    let sHtml = '';
+    sortedUsers.forEach(([name, data]) => {
+        sHtml += `<tr>
+            <td class="col-name"><strong>${name}</strong></td>
+            <td class="col-pts"><span class="badge bg-pts">${data.total}</span></td>
+            <td class="col-tix"><span class="badge bg-tix">${Math.floor(data.total/7)}</span></td>
+            <td class="col-rem">${data.total % 7}</td>
+        </tr>`;
+    });
+    document.getElementById('summaryBody').innerHTML = sHtml;
+
+    let dHtml = '';
+    sortedUsers.forEach(([name, data]) => {
+        dHtml += `<tr class="user-row"><td colspan="3">👤 ${name}</td></tr>`;
+        data.msgs.forEach(m => {
+            dHtml += `<tr><td>${m.date}</td><td style="text-align:right">${m.content}</td><td>${m.pts}</td></tr>`;
+        });
+        dHtml += `<tr class="sum-row"><td colspan="2" style="text-align:left">סה"כ:</td><td>${data.total}</td></tr>`;
+    });
+    document.getElementById('detailBody').innerHTML = dHtml;
+}
+
+function copyTable(id) {
+    const el = document.getElementById(id);
+    let range = document.createRange();
+    range.selectNode(el);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    document.execCommand('copy');
+    alert('הועתק!');
+}
+</script>
+</body>
+</html>
