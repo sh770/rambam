@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>הגרלה מקצועית - Crypto Random</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+    <style>
+        :root { --primary: #1a237e; --gold: #c5a059; --bg: #f4f7f6; }
+        * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { background: var(--bg); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; color: #333; }
+
+        .main-layout { display: flex; gap: 40px; width: 100%; max-width: 1100px; flex-wrap: wrap; justify-content: center; margin-top: 20px; }
+
+        /* קופסת ההגרלה */
+        .raffle-container { text-align: center; flex: 1; min-width: 350px; }
+        .raffle-box {
+            background: #fff;
+            height: 300px;
+            border: 2px solid #ddd;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 0 50px rgba(0,0,0,0.02), 0 15px 35px rgba(0,0,0,0.1);
+            margin-bottom: 25px;
+        }
+
+        #current-name {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--primary);
+            text-align: center;
+            padding: 0 20px;
+        }
+
+        /* רשימת זוכים */
+        .winners-panel {
+            background: #fff;
+            width: 320px;
+            max-height: 500px;
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .winners-panel h2 { color: var(--primary); font-size: 1.4rem; margin: 0 0 15px 0; border-bottom: 2px solid var(--bg); padding-bottom: 10px; }
+        #winnersList { overflow-y: auto; flex-grow: 1; }
+        .winner-item { 
+            padding: 12px; 
+            border-bottom: 1px solid #eee; 
+            font-weight: 600; 
+            display: flex; 
+            justify-content: space-between;
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+        }
+        @keyframes popIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+
+        /* כפתור הפעלה */
+        .btn-draw {
+            background: var(--primary);
+            color: white;
+            padding: 18px 60px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.4rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+            width: 100%;
+        }
+        .btn-draw:hover:not(:disabled) { background: #0d144d; transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.2); }
+        .btn-draw:disabled { background: #bdc3c7; cursor: not-allowed; }
+
+        .stats-info { margin-top: 15px; font-size: 0.95rem; color: #7f8c8d; }
+    </style>
+</head>
+<body>
+
+    <h1 style="font-weight: 900; letter-spacing: -1px;">מערכת הגרלה <span style="color:var(--gold)">PREMIUM</span></h1>
+
+    <div class="main-layout">
+        <div class="raffle-container">
+            <div class="raffle-box">
+                <div id="current-name">מוכנים להתחיל?</div>
+            </div>
+            <button class="btn-draw" id="drawBtn" onclick="drawWinner()">הגרל כרטיס!</button>
+            <div class="stats-info">
+                סה"כ כרטיסים בתיבה: <strong id="count">0</strong>
+            </div>
+        </div>
+
+        <div class="winners-panel">
+            <h2>🏆 רשימת זוכים</h2>
+            <div id="winnersList"></div>
+        </div>
+    </div>
+
+<script>
+    let ticketsPool = [];
+    let isDrawing = false;
+    let winnerCount = 0;
+
+    // טעינת הנתונים מהזיכרון
+    window.onload = () => {
+        const stored = localStorage.getItem("participants");
+        if (stored) {
+            const data = JSON.parse(stored);
+            data.forEach(p => {
+                for(let i=0; i<p.tickets; i++) {
+                    ticketsPool.push(p.name);
+                }
+            });
+            updateStats();
+        }
+    };
+
+    function updateStats() {
+        document.getElementById('count').textContent = ticketsPool.length;
+    }
+
+    // פונקציית רנדום קריפטוגרפית (True Random)
+    function getSecureRandomIndex(max) {
+        const array = new Uint32Array(1);
+        window.crypto.getRandomValues(array);
+        return array[0] % max;
+    }
+
+    function drawWinner() {
+        if (isDrawing || ticketsPool.length === 0) return;
+        
+        isDrawing = true;
+        document.getElementById('drawBtn').disabled = true;
+        const display = document.getElementById('current-name');
+        display.style.color = "var(--primary)";
+        
+        const duration = 3500; 
+        const startTime = Date.now();
+
+        // אנימציית ערבוב
+        const shuffleInterval = setInterval(() => {
+            const tempIdx = getSecureRandomIndex(ticketsPool.length);
+            display.textContent = ticketsPool[tempIdx];
+            display.style.opacity = Math.random() > 0.5 ? "1" : "0.7";
+        }, 70);
+
+        setTimeout(() => {
+            clearInterval(shuffleInterval);
+            
+            // הגרלה סופית באמצעות Crypto
+            const finalIndex = getSecureRandomIndex(ticketsPool.length);
+            const winnerName = ticketsPool[finalIndex];
+            
+            // הצגת הזוכה
+            display.textContent = winnerName;
+            display.style.color = "#d4af37";
+            display.style.opacity = "1";
+            
+            confetti({
+                particleCount: 150,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#1a237e', '#c5a059', '#ffffff']
+            });
+
+            // הוספה לרשימה
+            winnerCount++;
+            const list = document.getElementById('winnersList');
+            const div = document.createElement('div');
+            div.className = 'winner-item';
+            div.innerHTML = `<span>${winnerCount}. ${winnerName}</span> <small style="color:#999">כרטיס #${finalIndex + 1}</small>`;
+            list.prepend(div);
+
+            // הסרת הכרטיס הספציפי שזכה בלבד! (שאר הכרטיסים של המשתמש נשארים)
+            ticketsPool.splice(finalIndex, 1);
+            
+            updateStats();
+            isDrawing = false;
+            document.getElementById('drawBtn').disabled = false;
+
+        }, duration);
+    }
+</script>
+</body>
+</html>
