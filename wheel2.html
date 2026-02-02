@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>גלגל הגרלה פרימיום</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+    <style>
+        :root { --gold: #d4af37; --iron: #2c3e50; --bg: #0f0f12; }
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
+        body { background: var(--bg); color: white; margin: 0; padding: 10px; direction: rtl; overflow-x: hidden; }
+        
+        h1 { font-size: 1.5rem; margin-top: 10px; color: var(--gold); text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+
+        /* אזור הגלגל המשופר */
+        #wheel-wrapper {
+            position: relative;
+            width: 340px;
+            height: 340px;
+            margin: 20px auto;
+            border: 8px solid #1a1a1a;
+            border-radius: 50%;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8), inset 0 0 20px rgba(212, 175, 55, 0.2);
+        }
+
+        /* תצוגת שם במרכז הגלגל */
+        #center-display {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100px; height: 100px;
+            background: #1a1a1a;
+            border: 3px solid var(--gold);
+            border-radius: 50%;
+            z-index: 20;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-weight: bold;
+            font-size: 0.8rem;
+            color: var(--gold);
+            box-shadow: 0 0 15px rgba(0,0,0,1);
+            pointer-events: none;
+            padding: 5px;
+        }
+
+        #arrow {
+            position: absolute;
+            top: -20px; left: 50%;
+            transform: translateX(-50%);
+            width: 40px; height: 40px;
+            background: var(--gold);
+            clip-path: polygon(50% 100%, 15% 0, 85% 0);
+            z-index: 30;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+        }
+
+        canvas { width: 100%; height: 100%; border-radius: 50%; }
+
+        .btn-spin {
+            background: linear-gradient(135deg, var(--gold), #f1c40f);
+            color: #000;
+            width: 80%;
+            max-width: 300px;
+            padding: 15px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.3rem;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 20px 0;
+            box-shadow: 0 4px 15px rgba(212, 175, 55, 0.4);
+        }
+        .btn-spin:disabled { filter: grayscale(1); opacity: 0.5; }
+
+        /* טבלה */
+        .card { background: #1a1a1a; border-radius: 15px; padding: 15px; margin-top: 20px; border: 1px solid #333; }
+        table { width: 100%; border-collapse: collapse; color: #ddd; font-size: 0.9rem; }
+        th { border-bottom: 2px solid var(--gold); padding: 10px; color: var(--gold); }
+        td { padding: 10px; border-bottom: 1px solid #333; }
+
+        /* פופ-אפ ניצחון */
+        #winner-modal {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            background: #222;
+            color: var(--gold);
+            padding: 40px;
+            border-radius: 20px;
+            border: 2px solid var(--gold);
+            z-index: 100;
+            text-align: center;
+            transition: 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            width: 80%;
+        }
+        #winner-modal.active { transform: translate(-50%, -50%) scale(1); }
+    </style>
+</head>
+<body>
+
+    <h1>🏆 הגרלת הפרס הגדול</h1>
+
+    <div id="wheel-wrapper">
+        <div id="arrow"></div>
+        <div id="center-display">מוכן?</div>
+        <canvas id="wheel" width="600" height="600"></canvas>
+    </div>
+
+    <button class="btn-spin" id="spinBtn" onclick="spin()">סובב את הגלגל!</button>
+
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>משתתף</th>
+                    <th>סיכויים</th>
+                </tr>
+            </thead>
+            <tbody id="pList"></tbody>
+        </table>
+    </div>
+
+    <div id="winner-modal">
+        <div style="font-size: 1.2rem; margin-bottom: 10px;">והזוכה הוא/היא:</div>
+        <div id="win-name" style="font-size: 2.5rem; font-weight: bold; margin-bottom: 20px;"></div>
+        <button onclick="closeModal()" style="background:var(--gold); border:none; padding:10px 20px; border-radius:5px; cursor:pointer; font-weight:bold;">אישור</button>
+    </div>
+
+<script>
+    let participants = [];
+    let segments = [];
+    const canvas = document.getElementById('wheel');
+    const ctx = canvas.getContext('2d');
+    const centerDisplay = document.getElementById('center-display');
+    let angle = 0;
+    let isSpinning = false;
+
+    // צבעים יוקרתיים
+    const colors = ["#2c3e50", "#d4af37", "#1a1a1a", "#7f8c8d", "#f1c40f", "#34495e"];
+
+    window.onload = () => {
+        const stored = localStorage.getItem("participants");
+        if (stored) {
+            participants = JSON.parse(stored).filter(p => p.tickets > 0);
+            segments = [];
+            participants.forEach(p => {
+                for(let i=0; i<p.tickets; i++) segments.push(p.name);
+            });
+            renderList();
+            draw();
+        }
+    };
+
+    function renderList() {
+        const list = document.getElementById('pList');
+        list.innerHTML = participants.map(p => `<tr><td>${p.name}</td><td>${p.tickets}</td></tr>`).join('');
+    }
+
+    function draw() {
+        const num = segments.length;
+        if (num === 0) return;
+        const arc = (Math.PI * 2) / num;
+        ctx.clearRect(0,0,600,600);
+
+        segments.forEach((s, i) => {
+            ctx.beginPath();
+            ctx.fillStyle = colors[i % colors.length];
+            ctx.moveTo(300, 300);
+            ctx.arc(300, 300, 290, angle + i * arc, angle + (i+1) * arc);
+            ctx.fill();
+            ctx.strokeStyle = "rgba(255,255,255,0.1)";
+            ctx.stroke();
+        });
+    }
+
+    function spin() {
+        if (isSpinning || segments.length === 0) return;
+        isSpinning = true;
+        document.getElementById('spinBtn').disabled = true;
+
+        const duration = 5000;
+        const startTime = performance.now();
+        const totalRotation = Math.PI * 2 * (15 + Math.random() * 10);
+
+        function animate(now) {
+            const elapsed = now - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            // Ease out
+            const ease = 1 - Math.pow(1 - progress, 4);
+            angle = totalRotation * ease;
+            
+            draw();
+            updateCenterText();
+
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            } else {
+                isSpinning = false;
+                document.getElementById('spinBtn').disabled = false;
+                finalizeWinner();
+            }
+        }
+        requestAnimationFrame(animate);
+    }
+
+    function updateCenterText() {
+        const num = segments.length;
+        const arc = (Math.PI * 2) / num;
+        // החישוב של מי נמצא כרגע תחת החץ (למעלה)
+        const current = Math.floor((Math.PI * 1.5 - angle % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) / arc) % num;
+        centerDisplay.textContent = segments[current];
+    }
+
+    function finalizeWinner() {
+        const winner = centerDisplay.textContent;
+        document.getElementById('win-name').textContent = winner;
+        document.getElementById('winner-modal').classList.add('active');
+        
+        confetti({ particleCount: 200, spread: 80, origin: { y: 0.7 }, colors: ['#d4af37', '#ffffff'] });
+    }
+
+    function closeModal() {
+        document.getElementById('winner-modal').classList.remove('active');
+    }
+</script>
+</body>
+</html>
