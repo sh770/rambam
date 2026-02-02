@@ -3,65 +3,72 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ניהול הגרלה - לוח בקרה</title>
+    <title>ניהול הגרלה - זרימה מאובטחת</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
-        :root { --primary: #1a237e; --bg: #f5f7f9; --accent: #2e7d32; }
+        :root { --primary: #1a237e; --bg: #f5f7f9; --accent: #2e7d32; --error: #c62828; }
         * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
         body { background: var(--bg); padding: 5px; direction: rtl; margin: 0; }
         .card { background: white; padding: 12px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 15px; }
-        h1, h2 { text-align: center; color: var(--primary); margin-bottom: 12px; font-size: 1.3rem; }
-        .btn { width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; color: white; margin-top: 8px; }
+        h1, h2 { text-align: center; color: var(--primary); margin-bottom: 12px; font-size: 1.2rem; }
+        
+        .btn { width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; color: white; margin-top: 8px; transition: 0.3s; }
         .btn-blue { background: #3949ab; }
         .btn-green { background: var(--accent); }
-        .btn-red { background: #c62828; margin-top: 20px; font-size: 0.8em; opacity: 0.8; }
-        .btn:disabled { background: #ccc; }
+        .btn-red { background: var(--error); font-size: 0.8em; }
+        .btn:disabled { background: #ccc !important; cursor: not-allowed; opacity: 0.6; }
+
+        .instruction-box { background: #fff3e0; border-right: 5px solid #ff9800; padding: 10px; margin: 10px 0; font-size: 0.9em; display: none; }
         .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
-        label { font-size: 0.85em; font-weight: bold; }
+        label { font-size: 0.85em; font-weight: bold; display: block; margin-bottom: 3px; }
         input[type="date"] { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px; font-size: 0.9em; }
+
         .table-wrap { width: 100%; border: 1px solid #eee; border-radius: 6px; overflow: hidden; margin-top: 5px; }
         table { width: 100%; border-collapse: collapse; table-layout: fixed; background: white; }
         th, td { padding: 8px 4px; text-align: center; border-bottom: 1px solid #eee; font-size: 0.85em; word-wrap: break-word; }
         th { background: #f0f2f5; font-weight: bold; }
         .col-name { width: 40%; text-align: right; padding-right: 8px; }
-        .user-row { background: #e8eaf6; font-weight: bold; color: var(--primary); text-align: right; }
-        .sum-row { background: #fff9c4; font-weight: bold; font-size: 0.9em; }
-        .badge { padding: 2px 4px; border-radius: 4px; display: inline-block; }
-        .bg-pts { background: #c8e6c9; color: #1b5e20; }
+        
+        .badge { padding: 2px 4px; border-radius: 4px; display: inline-block; font-weight: bold; }
         .bg-tix { background: #ffe0b2; color: #e65100; }
-        #status { text-align: center; font-size: 0.85em; margin: 8px 0; color: #e65100; min-height: 1.2em; }
-        .stored-title { background: #e3f2fd; color: #0d47a1; padding: 5px; border-radius: 5px; font-size: 0.9em; text-align: center; margin-bottom: 10px; font-weight: bold; }
+        .user-row { background: #e8eaf6; font-weight: bold; text-align: right; }
+        .sum-row { background: #fff9c4; font-weight: bold; }
+        
+        #status { text-align: center; font-size: 0.85em; margin: 8px 0; color: var(--accent); font-weight: bold; }
     </style>
 </head>
 <body>
 
-<div class="card">
-    <h1>🎟️ ניהול הגרלה צבור</h1>
+<div class="card" id="controlPanel">
+    <h1>🎟️ ניהול הגרלה</h1>
     
     <input type="file" id="zipFile" onchange="onFileSelected()" style="display: none;">
-    <label for="zipFile" class="btn btn-blue" style="display: block; text-align: center;">📂 טען קובץ ZIP חדש</label>
+    <label id="zipLabel" for="zipFile" class="btn btn-blue" style="display: block; text-align: center;">📂 1. טען קובץ ZIP</label>
     
-    <button id="extractBtn" class="btn btn-blue" onclick="extractData()" disabled>📥 שלב 1: חלץ נתונים</button>
-    
-    <div id="status">ממתין לפעולה...</div>
+    <div id="status"></div>
+
+    <div id="instructions" class="instruction-box">
+        <strong>הקובץ נקלט!</strong><br>
+        כעת ניתן לבחור טווח תאריכים (אופציונלי) וללחוץ על "בצע ניתוח ועדכון". שים לב: לאחר הלחיצה הנתונים יישמרו בזיכרון ולא ניתן יהיה להריץ את אותו קובץ שוב.
+    </div>
 
     <div class="input-row">
-        <div><label>מיום:</label><input type="date" id="fromDate"></div>
-        <div><label>עד יום:</label><input type="date" id="toDate"></div>
+        <div><label>מיום:</label><input type="date" id="fromDate" disabled></div>
+        <div><label>עד יום:</label><input type="date" id="toDate" disabled></div>
     </div>
-    <button id="analyzeBtn" class="btn btn-green" onclick="run()" disabled>🚀 שלב 2: עדכן והפק דוח</button>
+    
+    <button id="analyzeBtn" class="btn btn-green" onclick="runAnalysis()" disabled>🚀 2. בצע ניתוח ועדכון זיכרון</button>
 </div>
 
 <div id="outputArea">
     <div class="card" id="summaryCard" style="display:none;">
-        <div id="storedIndicator" class="stored-title" style="display:none;">📊 נתונים טעונים מהזיכרון</div>
         <h2>📋 סיכום הגרלה מצטבר</h2>
         <div class="table-wrap">
             <table id="summaryTable">
                 <thead>
                     <tr>
                         <th class="col-name">שם</th>
-                        <th style="width:18%">נק' סבב</th>
+                        <th style="width:18%">סבב זה</th>
                         <th style="width:24%">כרטיסים</th>
                         <th style="width:18%">שאר</th>
                     </tr>
@@ -69,17 +76,17 @@
                 <tbody id="summaryBody"></tbody>
             </table>
         </div>
-        <button class="btn btn-blue" onclick="copyTable('summaryTable')">📋 העתק טבלה</button>
+        <button class="btn btn-blue" id="copyBtn" onclick="copyTable('summaryTable')">📋 העתק טבלה</button>
     </div>
 
     <div class="card" id="detailCard" style="display:none;">
-        <h2>📝 פירוט מהקובץ האחרון</h2>
+        <h2>📝 פירוט הודעות מהסבב האחרון</h2>
         <div class="table-wrap">
             <table id="detailTable">
                 <thead>
                     <tr>
-                        <th style="width: 20%;">תאריך</th>
-                        <th style="width: 65%; text-align: right;">הודעה</th>
+                        <th style="width: 25%;">תאריך</th>
+                        <th style="width: 60%; text-align: right;">הודעה</th>
                         <th style="width: 15%;">נק'</th>
                     </tr>
                 </thead>
@@ -88,15 +95,18 @@
         </div>
     </div>
 
-    <button id="clearBtn" class="btn btn-red" onclick="clearMemory()" style="display:none;">⚠️ אפס את כל הנתונים בזיכרון</button>
+    <div style="padding: 10px;">
+        <button id="clearBtn" class="btn btn-red" onclick="clearMemory()">⚠️ אפס את כל הנתונים בזיכרון</button>
+    </div>
 </div>
 
 <script>
 let currentFileMessages = [];
 const TICKET_THRESHOLD = 7;
 
-// הרצה בטעינת הדף
-window.addEventListener('DOMContentLoaded', loadStoredData);
+window.addEventListener('DOMContentLoaded', () => {
+    loadStoredData();
+});
 
 function loadStoredData() {
     const data = localStorage.getItem("participants");
@@ -104,30 +114,38 @@ function loadStoredData() {
         const participants = JSON.parse(data);
         if (participants.length > 0) {
             document.getElementById('summaryCard').style.display = 'block';
-            document.getElementById('storedIndicator').style.display = 'block';
             document.getElementById('clearBtn').style.display = 'block';
             renderSummaryOnly(participants);
         }
     }
 }
 
-function onFileSelected() {
-    document.getElementById('extractBtn').disabled = false;
-    document.getElementById('status').textContent = 'קובץ מוכן לחילוץ.';
-}
-
-async function extractData() {
+async function onFileSelected() {
     const file = document.getElementById('zipFile').files[0];
-    document.getElementById('status').textContent = 'מחלץ...';
+    if (!file) return;
+
+    const status = document.getElementById('status');
+    status.textContent = 'מחלץ נתונים...';
+    
     try {
         const zip = await JSZip.loadAsync(file);
         let text = '';
         const files = Object.keys(zip.files).filter(name => name.endsWith('.txt'));
         for (let name of files) { text += await zip.files[name].async('string') + '\n'; }
+        
         currentFileMessages = parse(text);
+        
+        // עדכון ממשק לאחר טעינה מוצלחת
+        status.textContent = `נמצאו ${currentFileMessages.length} הודעות ניקוד.`;
+        document.getElementById('instructions').style.display = 'block';
+        document.getElementById('fromDate').disabled = false;
+        document.getElementById('toDate').disabled = false;
         document.getElementById('analyzeBtn').disabled = false;
-        document.getElementById('status').textContent = `זוהו ${currentFileMessages.length} הודעות. לחץ על עדכן.`;
-    } catch (e) { document.getElementById('status').textContent = 'שגיאה בחילוץ.'; }
+        document.getElementById('zipLabel').style.opacity = '0.5';
+    } catch (e) {
+        status.textContent = 'שגיאה בחילוץ הקובץ.';
+        status.style.color = 'red';
+    }
 }
 
 function parse(text) {
@@ -153,16 +171,18 @@ function parse(text) {
     return parsed;
 }
 
-function run() {
+function runAnalysis() {
+    // מניעת לחיצה כפולה - נעילת הממשק מיד
     const btn = document.getElementById('analyzeBtn');
-    btn.textContent = 'מעבד ושומר...';
-    setTimeout(() => {
-        analyzeAndSave();
-        document.getElementById('detailCard').style.display = 'block';
-        document.getElementById('clearBtn').style.display = 'block';
-        document.getElementById('storedIndicator').style.display = 'none'; // מבטל את הציון שזה רק מהזיכרון כי עכשיו זה מעודכן
-        btn.textContent = '🚀 הנתונים עודכנו!';
-    }, 50);
+    btn.disabled = true;
+    document.getElementById('zipFile').disabled = true;
+    document.getElementById('fromDate').disabled = true;
+    document.getElementById('toDate').disabled = true;
+    
+    document.getElementById('status').textContent = 'הנתונים עודכנו בזיכרון וננעלו.';
+    document.getElementById('instructions').innerHTML = '✅ <strong>העדכון הושלם!</strong> הנתונים נשמרו. כדי להזין קובץ חדש, יש לרענן את הדף.';
+
+    analyzeAndSave();
 }
 
 function analyzeAndSave() {
@@ -198,58 +218,46 @@ function analyzeAndSave() {
     const updatedParticipants = Array.from(allNames).map(name => {
         const cur = currentResults[name] || { pts: 0 };
         const prev = previousMap[name] || { tickets: 0, remainder: 0 };
-
         const totalToCalculate = cur.pts + prev.remainder;
         const newTickets = Math.floor(totalToCalculate / TICKET_THRESHOLD);
-        const remainder = totalToCalculate % TICKET_THRESHOLD;
-
+        
         return {
             name: name,
             tickets: prev.tickets + newTickets,
-            remainder: remainder,
+            remainder: totalToCalculate % TICKET_THRESHOLD,
             currentCyclePts: cur.pts
         };
     });
 
     localStorage.setItem("participants", JSON.stringify(updatedParticipants));
+    
     renderAll(updatedParticipants, currentResults);
+    document.getElementById('summaryCard').style.display = 'block';
+    document.getElementById('detailCard').style.display = 'block';
 }
 
 function renderSummaryOnly(participants) {
     let sHtml = '';
     participants.sort((a,b) => b.tickets - a.tickets || b.remainder - a.remainder).forEach(p => {
-        sHtml += `<tr>
-            <td class="col-name"><strong>${p.name}</strong></td>
-            <td>-</td>
-            <td><span class="badge bg-tix">${p.tickets}</span></td>
-            <td>${p.remainder}</td>
-        </tr>`;
+        sHtml += `<tr><td class="col-name"><strong>${p.name}</strong></td><td>-</td><td><span class="badge bg-tix">${p.tickets}</span></td><td>${p.remainder}</td></tr>`;
     });
     document.getElementById('summaryBody').innerHTML = sHtml;
 }
 
 function renderAll(participants, currentResults) {
-    // עדכון סיכום
     let sHtml = '';
     participants.sort((a,b) => b.tickets - a.tickets || b.remainder - a.remainder).forEach(p => {
-        sHtml += `<tr>
-            <td class="col-name"><strong>${p.name}</strong></td>
-            <td>${p.currentCyclePts || 0}</td>
-            <td><span class="badge bg-tix">${p.tickets}</span></td>
-            <td>${p.remainder}</td>
-        </tr>`;
+        sHtml += `<tr><td class="col-name"><strong>${p.name}</strong></td><td>${p.currentCyclePts || 0}</td><td><span class="badge bg-tix">${p.tickets}</span></td><td>${p.remainder}</td></tr>`;
     });
     document.getElementById('summaryBody').innerHTML = sHtml;
-    document.getElementById('summaryCard').style.display = 'block';
 
-    // עדכון פירוט
     let dHtml = '';
     Object.entries(currentResults).sort((a,b) => b[1].pts - a[1].pts).forEach(([name, data]) => {
         dHtml += `<tr class="user-row"><td colspan="3">👤 ${name}</td></tr>`;
         data.msgs.forEach(m => {
             dHtml += `<tr><td>${m.date}</td><td style="text-align:right">${m.content}</td><td>${m.pts}</td></tr>`;
         });
-        dHtml += `<tr class="sum-row"><td colspan="2" style="text-align:left">סה"כ לסבב:</td><td>${data.pts}</td></tr>`;
+        dHtml += `<tr class="sum-row"><td colspan="2" style="text-align:left">סה"כ סבב:</td><td>${data.pts}</td></tr>`;
     });
     document.getElementById('detailBody').innerHTML = dHtml;
 }
