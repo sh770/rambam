@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ניהול הגרלה - איתור כפילויות מתקדם</title>
+    <title>ניהול הגרלה - נעילה ומניעת כפילויות</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         :root { --primary: #1a237e; --bg: #f5f7f9; --accent: #2e7d32; --error: #c62828; }
@@ -16,7 +16,7 @@
         .btn-green { background: var(--accent); }
         .btn-red-outline { background: transparent; color: var(--error); border: 1px solid var(--error); padding: 5px 10px; font-size: 0.75rem; position: absolute; left: 12px; top: 12px; width: auto; border-radius: 5px; }
         .btn-purple { background: #673ab7; }
-        .btn:disabled { background: #ccc !important; cursor: not-allowed; opacity: 0.6; }
+        .btn:disabled { background: #ccc !important; cursor: default; opacity: 0.6; pointer-events: none; }
         .instruction-box { background: #fff3e0; border-right: 5px solid #ff9800; padding: 10px; margin: 10px 0; font-size: 0.9em; display: none; }
         .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
         label { font-size: 0.85em; font-weight: bold; display: block; margin-bottom: 3px; }
@@ -53,7 +53,7 @@
     <button id="analyzeBtn" class="btn btn-green" onclick="runAnalysis()" disabled>🚀 2. בצע ניתוח ועדכון</button>
     
     <div id="navSection" class="nav-section">
-        <a href="wheel.html" class="btn btn-purple">🎯 עבור לדף ההגרלה</a>
+        <a href="lottery.html" class="btn btn-purple">🎯 עבור לדף ההגרלה</a>
     </div>
 </div>
 
@@ -77,7 +77,7 @@
     </div>
     
     <div class="card" id="detailCard" style="display:none;">
-        <h2>📝 פירוט הודעות מלא (כולל שנה ושעה)</h2>
+        <h2>📝 פירוט הודעות מלא</h2>
         <div class="table-wrap">
             <table id="detailTable">
                 <thead>
@@ -118,6 +118,12 @@ async function onFileSelected() {
     const file = document.getElementById('zipFile').files[0];
     if (!file) return;
     document.getElementById('status').textContent = 'מחלץ נתונים...';
+    
+    // איפוס מצב הכפתורים בהעלאת קובץ חדש
+    document.getElementById('analyzeBtn').disabled = false;
+    document.getElementById('fromDate').disabled = false;
+    document.getElementById('toDate').disabled = false;
+
     try {
         const zip = await JSZip.loadAsync(file);
         let text = '';
@@ -126,9 +132,6 @@ async function onFileSelected() {
         currentFileMessages = parse(text);
         document.getElementById('status').textContent = `נמצאו ${currentFileMessages.length} הודעות ניקוד ייחודיות.`;
         document.getElementById('instructions').style.display = 'block';
-        document.getElementById('fromDate').disabled = false;
-        document.getElementById('toDate').disabled = false;
-        document.getElementById('analyzeBtn').disabled = false;
     } catch (e) {
         document.getElementById('status').textContent = 'שגיאה בחילוץ.';
     }
@@ -139,17 +142,14 @@ function parse(text) {
     const parsed = [];
     const seenMessages = new Set(); 
     
-    // רגקסים שתופסים שנה, תאריך ושעה
-    // פורמט iOS: [1.1.25, 12:00:00] או [1.1.2025, 12:00]
     const r1 = /^\[(\d{1,2}\.\d{1,2}\.?\d{0,4}),\s*(\d{1,2}:\d{2}(?::\d{2})?)\]\s*(.+?):\s*(.+)$/;
-    // פורמט Android: 1.1.2025, 12:00 - שם: הודעה
     const r2 = /^(\d{1,2}\.\d{1,2}\.\d{2,4}),\s*(\d{1,2}:\d{2})\s*-\s*(.+?):\s*(.+)$/;
 
     for (let line of lines) {
         let m = line.match(r1) || line.match(r2);
         if (m) {
-            let dateStr = m[1]; // יכול להיות 1.1.25 או 1.1.2025
-            let timeStr = m[2]; // יכול להיות 12:00 או 12:00:00
+            let dateStr = m[1];
+            let timeStr = m[2];
             let sender = m[3].trim().replace(/\u200F|\u200E/g, "");
             let content = m[4].trim();
 
@@ -160,8 +160,6 @@ function parse(text) {
             
             if (pts > 0) {
                 seenMessages.add(uniqueKey);
-                
-                // נירמול התאריך לצורך אובייקט Date
                 let dateParts = dateStr.split('.');
                 let day = parseInt(dateParts[0]);
                 let month = parseInt(dateParts[1]);
@@ -182,18 +180,23 @@ function parse(text) {
 }
 
 function runAnalysis() {
-    document.getElementById('analyzeBtn').disabled = true;
+    // נעילה מיידית של הכפתור כדי למנוע הרצה כפולה
+    const btn = document.getElementById('analyzeBtn');
+    btn.disabled = true;
+    btn.textContent = "✅ הניתוח הושלם";
+    
+    // נעילת שדות התאריכים
+    document.getElementById('fromDate').disabled = true;
+    document.getElementById('toDate').disabled = true;
+
     analyzeAndSave();
 }
 
 function analyzeAndSave() {
     const fromInput = document.getElementById('fromDate').value;
     const toInput = document.getElementById('toDate').value;
-    
     const from = fromInput ? new Date(fromInput) : null;
     const to = toInput ? new Date(toInput) : null;
-    
-    // איפוס שעות בטווח החיפוש לדיוק מירבי
     if(from) from.setHours(0,0,0,0);
     if(to) to.setHours(23,59,59,999);
     
