@@ -3,18 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ניהול הגרלה - גרסה מתוקנת</title>
+    <title>ניהול הגרלה - נגישות משופרת</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         :root { --primary: #1a237e; --bg: #f5f7f9; --accent: #2e7d32; --error: #c62828; }
         * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
         body { background: var(--bg); padding: 5px; direction: rtl; margin: 0; }
-        .card { background: white; padding: 12px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 15px; }
+        .card { background: white; padding: 12px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 15px; position: relative; }
         h1, h2 { text-align: center; color: var(--primary); margin-bottom: 12px; font-size: 1.2rem; }
         .btn { width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; color: white; margin-top: 8px; transition: 0.3s; text-align: center; text-decoration: none; display: block; }
         .btn-blue { background: #3949ab; }
         .btn-green { background: var(--accent); }
-        .btn-red { background: var(--error); font-size: 0.8em; }
+        .btn-red { background: var(--error); }
+        .btn-red-outline { background: transparent; color: var(--error); border: 1px solid var(--error); padding: 5px; font-size: 0.75rem; margin-top: 0; position: absolute; left: 12px; top: 12px; width: auto; }
         .btn-purple { background: #673ab7; }
         .btn:disabled { background: #ccc !important; cursor: not-allowed; opacity: 0.6; }
         .instruction-box { background: #fff3e0; border-right: 5px solid #ff9800; padding: 10px; margin: 10px 0; font-size: 0.9em; display: none; }
@@ -29,25 +30,29 @@
         .badge { padding: 2px 4px; border-radius: 4px; display: inline-block; font-weight: bold; }
         .bg-tix { background: #ffe0b2; color: #e65100; }
         .user-row { background: #e8eaf6; font-weight: bold; text-align: right; }
-        .sum-row { background: #fff9c4; font-weight: bold; }
         #status { text-align: center; font-size: 0.85em; margin: 8px 0; color: var(--accent); font-weight: bold; }
         .nav-section { margin-top: 20px; border-top: 1px solid #ddd; padding-top: 15px; display: none; }
-        #clearBtn, #copyBtn { display: none; }
     </style>
 </head>
 <body>
 
 <div class="card" id="controlPanel">
+    <button id="clearBtn" class="btn btn-red-outline" onclick="clearMemory()" style="display: none;">🗑️ איפוס נתונים</button>
     <h1>🎟️ ניהול הגרלה</h1>
+    
     <input type="file" id="zipFile" onchange="onFileSelected()" style="display: none;">
     <label id="zipLabel" for="zipFile" class="btn btn-blue">📂 1. טען קובץ ZIP</label>
+    
     <div id="status"></div>
-    <div id="instructions" class="instruction-box"><strong>הקובץ נקלט!</strong><br>בחר תאריכים ולחץ על "בצע ניתוח".</div>
+    <div id="instructions" class="instruction-box"><strong>הקובץ נקלט!</strong><br>בחר טווח תאריכים ולחץ על "בצע ניתוח".</div>
+    
     <div class="input-row">
         <div><label>מיום:</label><input type="date" id="fromDate" disabled></div>
         <div><label>עד יום:</label><input type="date" id="toDate" disabled></div>
     </div>
+    
     <button id="analyzeBtn" class="btn btn-green" onclick="runAnalysis()" disabled>🚀 2. בצע ניתוח ועדכון</button>
+    
     <div id="navSection" class="nav-section">
         <a href="lottery.html" class="btn btn-purple">🎯 עבור לדף ההגרלה</a>
     </div>
@@ -69,14 +74,24 @@
                 <tbody id="summaryBody"></tbody>
             </table>
         </div>
-        <button class="btn btn-blue" id="copyBtn" onclick="copyTable('summaryTable')" style="margin-top:10px;">📋 העתק טבלה</button>
+        <button class="btn btn-blue" id="copyBtn" onclick="copyTable('summaryTable')" style="display: none; margin-top: 10px;">📋 העתק טבלה</button>
     </div>
+    
     <div class="card" id="detailCard" style="display:none;">
         <h2>📝 פירוט הודעות מהקובץ</h2>
-        <div class="table-wrap"><table id="detailTable"><thead><tr><th style="width: 25%;">תאריך</th><th style="width: 60%; text-align: right;">הודעה</th><th style="width: 15%;">נק'</th></tr></thead><tbody id="detailBody"></tbody></table></div>
-    </div>
-    <div style="padding: 10px;">
-        <button id="clearBtn" class="btn btn-red" onclick="clearMemory()">⚠️ איפוס מוחלט של כל ההיסטוריה</button>
+        <div class="table-wrap">
+            <table id="detailTable">
+                <thead>
+                    <tr>
+                        <th style="width: 20%;">תאריך</th>
+                        <th style="width: 15%;">שעה</th>
+                        <th style="width: 50%; text-align: right;">הודעה</th>
+                        <th style="width: 15%;">נק'</th>
+                    </tr>
+                </thead>
+                <tbody id="detailBody"></tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -110,7 +125,7 @@ async function onFileSelected() {
         const files = Object.keys(zip.files).filter(name => name.endsWith('.txt'));
         for (let name of files) { text += await zip.files[name].async('string') + '\n'; }
         currentFileMessages = parse(text);
-        document.getElementById('status').textContent = `נמצאו ${currentFileMessages.length} הודעות ניקוד.`;
+        document.getElementById('status').textContent = `נמצאו ${currentFileMessages.length} הודעות ניקוד ייחודיות.`;
         document.getElementById('instructions').style.display = 'block';
         document.getElementById('fromDate').disabled = false;
         document.getElementById('toDate').disabled = false;
@@ -123,19 +138,34 @@ async function onFileSelected() {
 function parse(text) {
     const lines = text.split('\n');
     const parsed = [];
-    const r1 = /^\[(\d{1,2})\.(\d{1,2}),\s*\d{1,2}:\d{2}\]\s*(.+?):\s*(.+)$/;
-    const r2 = /^(\d{1,2})\.(\d{1,2})\.\d{4},\s*\d{1,2}:\d{2}\s*-\s*(.+?):\s*(.+)$/;
+    const seenMessages = new Set(); 
+    
+    const r1 = /^\[(\d{1,2}\.\d{1,2}),\s*(\d{1,2}:\d{2})\]\s*(.+?):\s*(.+)$/;
+    const r2 = /^(\d{1,2}\.\d{1,2})\.\d{4},\s*(\d{1,2}:\d{2})\s*-\s*(.+?):\s*(.+)$/;
+
     for (let line of lines) {
         let m = line.match(r1) || line.match(r2);
         if (m) {
-            let content = m[m.length-1].trim();
+            let dateStr = m[1];
+            let timeStr = m[2];
+            let sender = m[3].trim().replace(/\u200F|\u200E/g, "");
+            let content = m[4].trim();
+
+            let uniqueKey = `${dateStr}-${timeStr}-${sender}-${content}`;
+            if (seenMessages.has(uniqueKey)) continue;
+
             let pts = content.includes('✅') ? 3 : content.includes('✔️') ? 2 : content.includes('♻️') ? 1 : 0;
+            
             if (pts > 0) {
+                seenMessages.add(uniqueKey);
+                let dateParts = dateStr.split('.');
                 parsed.push({
-                    date: `${m[1]}.${m[2]}`,
-                    dateObj: new Date(2026, m[2]-1, m[1]),
-                    sender: m[m.length-2].trim().replace(/\u200F|\u200E/g, ""),
-                    content: content, pts: pts
+                    date: dateStr,
+                    time: timeStr,
+                    dateObj: new Date(2026, parseInt(dateParts[1])-1, parseInt(dateParts[0])),
+                    sender: sender,
+                    content: content, 
+                    pts: pts
                 });
             }
         }
@@ -168,8 +198,6 @@ function analyzeAndSave() {
     const updatedParticipants = Array.from(allNames).map(name => {
         const cur = currentResults[name] || { pts: 0 };
         const prev = prevMap[name] || { remainder: 0 };
-        
-        // תיקון קריטי: חישוב מחדש (דורס כרטיסים ישנים)
         const totalPoints = cur.pts + prev.remainder;
         return {
             name: name,
@@ -198,8 +226,10 @@ function renderAll(participants, currentResults) {
     
     let dHtml = '';
     Object.entries(currentResults).sort((a,b) => b[1].pts - a[1].pts).forEach(([name, data]) => {
-        dHtml += `<tr class="user-row"><td colspan="3">👤 ${name}</td></tr>`;
-        data.msgs.forEach(m => { dHtml += `<tr><td>${m.date}</td><td style="text-align:right">${m.content}</td><td>${m.pts}</td></tr>`; });
+        dHtml += `<tr class="user-row"><td colspan="4">👤 ${name}</td></tr>`;
+        data.msgs.forEach(m => { 
+            dHtml += `<tr><td>${m.date}</td><td>${m.time}</td><td style="text-align:right">${m.content}</td><td>${m.pts}</td></tr>`; 
+        });
     });
     document.getElementById('detailBody').innerHTML = dHtml;
 }
@@ -213,8 +243,10 @@ function renderSummaryOnly(participants) {
 }
 
 function clearMemory() {
-    localStorage.removeItem("participants");
-    location.reload();
+    if(confirm("האם אתה בטוח שברצונך למחוק את כל נתוני ההגרלה והשאריות?")) {
+        localStorage.removeItem("participants");
+        location.reload();
+    }
 }
 
 function copyTable(id) {
