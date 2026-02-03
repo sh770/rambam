@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ניהול הגרלה - מהיר וחלק</title>
+    <title>ניהול הגרלה - איתור כפילויות מתקדם</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         :root { --primary: #1a237e; --bg: #f5f7f9; --accent: #2e7d32; --error: #c62828; }
@@ -23,9 +23,9 @@
         input[type="date"] { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px; font-size: 0.9em; }
         .table-wrap { width: 100%; border: 1px solid #eee; border-radius: 6px; overflow: hidden; margin-top: 5px; }
         table { width: 100%; border-collapse: collapse; table-layout: fixed; background: white; }
-        th, td { padding: 8px 4px; text-align: center; border-bottom: 1px solid #eee; font-size: 0.85em; word-wrap: break-word; }
+        th, td { padding: 8px 4px; text-align: center; border-bottom: 1px solid #eee; font-size: 0.8em; word-wrap: break-word; }
         th { background: #f0f2f5; font-weight: bold; }
-        .col-name { width: 40%; text-align: right; padding-right: 8px; }
+        .col-name { width: 35%; text-align: right; padding-right: 8px; }
         .badge { padding: 2px 4px; border-radius: 4px; display: inline-block; font-weight: bold; }
         .bg-tix { background: #ffe0b2; color: #e65100; }
         .user-row { background: #e8eaf6; font-weight: bold; text-align: right; }
@@ -77,14 +77,14 @@
     </div>
     
     <div class="card" id="detailCard" style="display:none;">
-        <h2>📝 פירוט הודעות מהקובץ</h2>
+        <h2>📝 פירוט הודעות מלא (כולל שנה ושעה)</h2>
         <div class="table-wrap">
             <table id="detailTable">
                 <thead>
                     <tr>
-                        <th style="width: 20%;">תאריך</th>
+                        <th style="width: 25%;">תאריך ושנה</th>
                         <th style="width: 15%;">שעה</th>
-                        <th style="width: 50%; text-align: right;">הודעה</th>
+                        <th style="width: 45%; text-align: right;">הודעה</th>
                         <th style="width: 15%;">נק'</th>
                     </tr>
                 </thead>
@@ -139,14 +139,17 @@ function parse(text) {
     const parsed = [];
     const seenMessages = new Set(); 
     
-    const r1 = /^\[(\d{1,2}\.\d{1,2}),\s*(\d{1,2}:\d{2})\]\s*(.+?):\s*(.+)$/;
-    const r2 = /^(\d{1,2}\.\d{1,2})\.\d{4},\s*(\d{1,2}:\d{2})\s*-\s*(.+?):\s*(.+)$/;
+    // רגקסים שתופסים שנה, תאריך ושעה
+    // פורמט iOS: [1.1.25, 12:00:00] או [1.1.2025, 12:00]
+    const r1 = /^\[(\d{1,2}\.\d{1,2}\.?\d{0,4}),\s*(\d{1,2}:\d{2}(?::\d{2})?)\]\s*(.+?):\s*(.+)$/;
+    // פורמט Android: 1.1.2025, 12:00 - שם: הודעה
+    const r2 = /^(\d{1,2}\.\d{1,2}\.\d{2,4}),\s*(\d{1,2}:\d{2})\s*-\s*(.+?):\s*(.+)$/;
 
     for (let line of lines) {
         let m = line.match(r1) || line.match(r2);
         if (m) {
-            let dateStr = m[1];
-            let timeStr = m[2];
+            let dateStr = m[1]; // יכול להיות 1.1.25 או 1.1.2025
+            let timeStr = m[2]; // יכול להיות 12:00 או 12:00:00
             let sender = m[3].trim().replace(/\u200F|\u200E/g, "");
             let content = m[4].trim();
 
@@ -157,11 +160,17 @@ function parse(text) {
             
             if (pts > 0) {
                 seenMessages.add(uniqueKey);
+                
+                // נירמול התאריך לצורך אובייקט Date
                 let dateParts = dateStr.split('.');
+                let day = parseInt(dateParts[0]);
+                let month = parseInt(dateParts[1]);
+                let year = dateParts[2] ? (dateParts[2].length === 2 ? 2000 + parseInt(dateParts[2]) : parseInt(dateParts[2])) : 2026;
+
                 parsed.push({
-                    date: dateStr,
+                    fullDate: dateStr,
                     time: timeStr,
-                    dateObj: new Date(2026, parseInt(dateParts[1])-1, parseInt(dateParts[0])),
+                    dateObj: new Date(year, month - 1, day),
                     sender: sender,
                     content: content, 
                     pts: pts
@@ -178,8 +187,15 @@ function runAnalysis() {
 }
 
 function analyzeAndSave() {
-    const from = document.getElementById('fromDate').value ? new Date(document.getElementById('fromDate').value) : null;
-    const to = document.getElementById('toDate').value ? new Date(document.getElementById('toDate').value) : null;
+    const fromInput = document.getElementById('fromDate').value;
+    const toInput = document.getElementById('toDate').value;
+    
+    const from = fromInput ? new Date(fromInput) : null;
+    const to = toInput ? new Date(toInput) : null;
+    
+    // איפוס שעות בטווח החיפוש לדיוק מירבי
+    if(from) from.setHours(0,0,0,0);
+    if(to) to.setHours(23,59,59,999);
     
     const currentResults = {};
     currentFileMessages.forEach(m => {
@@ -227,7 +243,7 @@ function renderAll(participants, currentResults) {
     Object.entries(currentResults).sort((a,b) => b[1].pts - a[1].pts).forEach(([name, data]) => {
         dHtml += `<tr class="user-row"><td colspan="4">👤 ${name}</td></tr>`;
         data.msgs.forEach(m => { 
-            dHtml += `<tr><td>${m.date}</td><td>${m.time}</td><td style="text-align:right">${m.content}</td><td>${m.pts}</td></tr>`; 
+            dHtml += `<tr><td>${m.fullDate}</td><td>${m.time}</td><td style="text-align:right">${m.content}</td><td>${m.pts}</td></tr>`; 
         });
     });
     document.getElementById('detailBody').innerHTML = dHtml;
